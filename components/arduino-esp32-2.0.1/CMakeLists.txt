@@ -70,6 +70,10 @@ set(CORE_SRCS
   )
 
 set(LIBRARY_SRCS
+  libraries/Adafruit_NeoPixel/Adafruit_NeoPixel.cpp
+  libraries/Adafruit_NeoPixel/esp.c
+  libraries/Adafruit_NeoPixel/esp8266.c
+  libraries/Adafruit_NeoPixel/kendyte_k210.c
   libraries/ArduinoOTA/src/ArduinoOTA.cpp
   libraries/AsyncUDP/src/AsyncUDP.cpp
   libraries/BluetoothSerial/src/BluetoothSerial.cpp
