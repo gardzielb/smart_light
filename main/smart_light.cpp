@@ -8,8 +8,8 @@
 
 #define LED_PIN GPIO_NUM_2
 
-_Noreturn void app_main(void) {
-	ESP_LOGI("main", "Starting smart light");
+extern "C" _Noreturn void app_main(void) {
+	ESP_LOGI("main", "Starting smart light - CPP now");
 
 	gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
 	uint32_t led_state = 1;
