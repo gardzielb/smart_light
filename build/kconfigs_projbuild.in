@@ -1,6 +1,0 @@
-source "/home/bartosz/esp-idf-v4.4/components/app_update/Kconfig.projbuild"
-source "/home/bartosz/esp-idf-v4.4/components/bootloader/Kconfig.projbuild"
-source "/home/bartosz/esp-idf-v4.4/components/esp_rom/Kconfig.projbuild"
-source "/home/bartosz/esp-idf-v4.4/components/esptool_py/Kconfig.projbuild"
-source "/home/bartosz/esp-idf-v4.4/components/partition_table/Kconfig.projbuild"
-source "/home/bartosz/Repos/CLionProjects/smart_light/components/arduino-esp32-2.0.1/Kconfig.projbuild"
