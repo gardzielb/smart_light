@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <Adafruit_NeoPixel/Adafruit_NeoPixel.h>
-#include <Arduino.h>
 
 #include "Color.h"
 
