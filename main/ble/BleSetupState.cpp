@@ -20,12 +20,12 @@
 #include "esp_gatt_common_api.h"
 
 
-#define GATTS_TABLE_TAG "GATTS_TABLE_DEMO"
+#define GATTS_TABLE_TAG "SMART_LIGHT_GATTS_TABLE"
 
 #define PROFILE_NUM                 1
 #define PROFILE_APP_IDX             0
-#define ESP_APP_ID                  0x55
-#define SAMPLE_DEVICE_NAME          "ESP_GATTS_DEMO"
+#define ESP_APP_ID                  0x69
+#define SAMPLE_DEVICE_NAME          "Smart Light"
 #define SVC_INST_ID                 0
 
 /* The max length of characteristic value. When the GATT client performs a write or prepare write operation,
@@ -40,19 +40,7 @@
 
 static uint8_t adv_config_done = 0;
 
-uint16_t heart_rate_handle_table[HRS_IDX_NB];
-
-static uint8_t setup_uuid_base[16] = {
-		0x0d, 0x86, 0x31, 0xef, 0xf7, 0x8d, 0xde, 0xb7,
-		0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
-};
-
-#define MAKE_UUID_128(base, id) { \
-		base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], \
-		base[8], base[9], base[10], base[11], id & 0xFF, (id >> 8) & 0xFF, base[14], base[15] \
-}
-
-static uint8_t setup_service_uuid[16] = MAKE_UUID_128(setup_uuid_base, 1);
+uint16_t heart_rate_handle_table[HRS_IDX_COUNT];
 
 /* The length of adv data must be less than 31 bytes */
 static esp_ble_adv_data_t adv_data = {
@@ -66,25 +54,8 @@ static esp_ble_adv_data_t adv_data = {
 		.p_manufacturer_data = NULL, //test_manufacturer,
 		.service_data_len    = 0,
 		.p_service_data      = NULL,
-		.service_uuid_len    = sizeof(setup_uuid_base),
-		.p_service_uuid      = setup_uuid_base,
-		.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
-};
-
-// scan response data
-static esp_ble_adv_data_t scan_rsp_data = {
-		.set_scan_rsp        = true,
-		.include_name        = true,
-		.include_txpower     = true,
-		.min_interval        = 0x0006,
-		.max_interval        = 0x0010,
-		.appearance          = 0x00,
-		.manufacturer_len    = 0, //TEST_MANUFACTURER_DATA_LEN,
-		.p_manufacturer_data = NULL, //&test_manufacturer[0],
-		.service_data_len    = 0,
-		.p_service_data      = NULL,
-		.service_uuid_len    = sizeof(setup_uuid_base),
-		.p_service_uuid      = setup_uuid_base,
+		.service_uuid_len    = 0,
+		.p_service_uuid      = NULL,
 		.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
@@ -123,25 +94,33 @@ static struct gatts_profile_inst heart_rate_profile_tab[PROFILE_NUM] = {
 		},
 };
 
-/* Service */
-static const uint16_t GATTS_SERVICE_UUID_TEST = 0x00FF;
-static const uint16_t GATTS_CHAR_UUID_TEST_A = 0xFF01;
-static const uint16_t GATTS_CHAR_UUID_TEST_B = 0xFF02;
-static const uint16_t GATTS_CHAR_UUID_TEST_C = 0xFF03;
+static uint8_t setup_uuid_base[16] = {
+		0x0d, 0x86, 0x31, 0xef, 0xf7, 0x8d, 0xde, 0xb7,
+		0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
+};
+
+#define MAKE_UUID_128(base, id) { \
+        base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], \
+        base[8], base[9], base[10], base[11], id & 0xFF, (id >> 8) & 0xFF, base[14], base[15] \
+}
+
+static uint8_t setup_service_uuid[16] = MAKE_UUID_128(setup_uuid_base, 1);
+static uint8_t wifi_ssid_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 2);
+static uint8_t wifi_passwd_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 3);
+static uint8_t mode_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 4);
+static uint8_t control_point_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 5);
 
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
 static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
-static const uint8_t char_prop_write = ESP_GATT_CHAR_PROP_BIT_WRITE;
+static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE;
 static const uint8_t char_prop_read_write_notify =
 		ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 static const uint8_t heart_measurement_ccc[2] = { 0x00, 0x00 };
-static const uint8_t char_value[4] = { 0x11, 0x22, 0x33, 0x44 };
 
 
 /* Full Database Description - Used to add attributes into the database */
-static const esp_gatts_attr_db_t gatt_db[HRS_IDX_NB] =
+static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
 		{
 				// Service Declaration
 				[IDX_SVC]        =
@@ -150,50 +129,63 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_NB] =
 								 ESP_UUID_LEN_128, ESP_UUID_LEN_128, setup_service_uuid }},
 
 				/* Characteristic Declaration */
-				[IDX_CHAR_A]     =
+				[IDX_CHAR_WIFI_SSID]      =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+				/* Characteristic Value */
+				[IDX_CHAR_VAL_WIFI_SSID]  =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_128, wifi_ssid_char_uuid,
+								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+
+				/* Characteristic Declaration */
+				[IDX_CHAR_WIFI_PASSWD]      =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+				/* Characteristic Value */
+				[IDX_CHAR_VAL_WIFI_PASSWD]  =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_128, wifi_passwd_char_uuid,
+								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+
+				/* Characteristic Declaration */
+				[IDX_CHAR_MODE]      =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+				/* Characteristic Value */
+				[IDX_CHAR_VAL_MODE]  =
+						{{ ESP_GATT_AUTO_RSP },
+						 { ESP_UUID_LEN_128, mode_char_uuid,
+								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+
+				/* Characteristic Declaration */
+				[IDX_CHAR_CONTROL_POINT]     =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
 								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write_notify }},
 
 				/* Characteristic Value */
-				[IDX_CHAR_VAL_A] =
+				[IDX_CHAR_VAL_CONTROL_POINT] =
 						{{ ESP_GATT_AUTO_RSP },
-						 { ESP_UUID_LEN_16, (uint8_t*) &GATTS_CHAR_UUID_TEST_A,
+						 { ESP_UUID_LEN_128, control_point_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, sizeof(char_value), (uint8_t*) char_value }},
+								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
 
 				/* Client Characteristic Configuration Descriptor */
-				[IDX_CHAR_CFG_A]  =
+				[IDX_CHAR_CFG_CONTROL_POINT]  =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_client_config_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 sizeof(uint16_t), sizeof(heart_measurement_ccc), (uint8_t*) heart_measurement_ccc }},
-
-				/* Characteristic Declaration */
-				[IDX_CHAR_B]      =
-						{{ ESP_GATT_AUTO_RSP },
-						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read }},
-
-				/* Characteristic Value */
-				[IDX_CHAR_VAL_B]  =
-						{{ ESP_GATT_AUTO_RSP },
-						 { ESP_UUID_LEN_16, (uint8_t*) &GATTS_CHAR_UUID_TEST_B,
-								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, sizeof(char_value), (uint8_t*) char_value }},
-
-				/* Characteristic Declaration */
-				[IDX_CHAR_C]      =
-						{{ ESP_GATT_AUTO_RSP },
-						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_write }},
-
-				/* Characteristic Value */
-				[IDX_CHAR_VAL_C]  =
-						{{ ESP_GATT_AUTO_RSP },
-						 { ESP_UUID_LEN_16, (uint8_t*) &GATTS_CHAR_UUID_TEST_C,
-								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, sizeof(char_value), (uint8_t*) char_value }},
+								 sizeof(uint16_t), sizeof(heart_measurement_ccc), (uint8_t*) heart_measurement_ccc }}
 		};
 
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
@@ -250,19 +242,22 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			if (set_dev_name_ret) {
 				ESP_LOGE(GATTS_TABLE_TAG, "set device name failed, error code = %x", set_dev_name_ret);
 			}
+
 			//config adv data
 			esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
 			if (ret) {
 				ESP_LOGE(GATTS_TABLE_TAG, "config adv data failed, error code = %x", ret);
 			}
 			adv_config_done |= ADV_CONFIG_FLAG;
+
 			//config scan response data
-			ret = esp_ble_gap_config_adv_data(&scan_rsp_data);
+			adv_data.set_scan_rsp = true;
+			ret = esp_ble_gap_config_adv_data(&adv_data);
 			if (ret) {
 				ESP_LOGE(GATTS_TABLE_TAG, "config scan response data failed, error code = %x", ret);
 			}
 			adv_config_done |= SCAN_RSP_CONFIG_FLAG;
-			esp_err_t create_attr_ret = esp_ble_gatts_create_attr_tab(gatt_db, gatts_if, HRS_IDX_NB, SVC_INST_ID);
+			esp_err_t create_attr_ret = esp_ble_gatts_create_attr_tab(gatt_db, gatts_if, HRS_IDX_COUNT, SVC_INST_ID);
 			if (create_attr_ret) {
 				ESP_LOGE(GATTS_TABLE_TAG, "create attr table failed, error code = %x", create_attr_ret);
 			}
@@ -304,9 +299,9 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			if (param->add_attr_tab.status != ESP_GATT_OK) {
 				ESP_LOGE(GATTS_TABLE_TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
 			}
-			else if (param->add_attr_tab.num_handle != HRS_IDX_NB) {
+			else if (param->add_attr_tab.num_handle != HRS_IDX_COUNT) {
 				ESP_LOGE(GATTS_TABLE_TAG, "create attribute table abnormally, num_handle (%d) \
-                        doesn't equal to HRS_IDX_NB(%d)", param->add_attr_tab.num_handle, HRS_IDX_NB);
+                        doesn't equal to HRS_IDX_COUNT(%d)", param->add_attr_tab.num_handle, HRS_IDX_COUNT);
 			}
 			else {
 				ESP_LOGI(GATTS_TABLE_TAG, "create attribute table successfully, the number handle = %d\n",
