@@ -42,18 +42,17 @@ static uint8_t adv_config_done = 0;
 
 uint16_t heart_rate_handle_table[HRS_IDX_NB];
 
-typedef struct {
-	uint8_t* prepare_buf;
-	int prepare_len;
-} prepare_type_env_t;
-
-static prepare_type_env_t prepare_write_env;
-
-static uint8_t service_uuid[16] = {
-		/* LSB <--------------------------------------------------------------------------------> MSB */
-		//first uuid, 16bit, [12],[13] is the value
-		0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+static uint8_t setup_uuid_base[16] = {
+		0x0d, 0x86, 0x31, 0xef, 0xf7, 0x8d, 0xde, 0xb7,
+		0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
 };
+
+#define MAKE_UUID_128(base, id) { \
+		base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], \
+		base[8], base[9], base[10], base[11], id & 0xFF, (id >> 8) & 0xFF, base[14], base[15] \
+}
+
+static uint8_t setup_service_uuid[16] = MAKE_UUID_128(setup_uuid_base, 1);
 
 /* The length of adv data must be less than 31 bytes */
 static esp_ble_adv_data_t adv_data = {
@@ -67,8 +66,8 @@ static esp_ble_adv_data_t adv_data = {
 		.p_manufacturer_data = NULL, //test_manufacturer,
 		.service_data_len    = 0,
 		.p_service_data      = NULL,
-		.service_uuid_len    = sizeof(service_uuid),
-		.p_service_uuid      = service_uuid,
+		.service_uuid_len    = sizeof(setup_uuid_base),
+		.p_service_uuid      = setup_uuid_base,
 		.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
@@ -84,8 +83,8 @@ static esp_ble_adv_data_t scan_rsp_data = {
 		.p_manufacturer_data = NULL, //&test_manufacturer[0],
 		.service_data_len    = 0,
 		.p_service_data      = NULL,
-		.service_uuid_len    = sizeof(service_uuid),
-		.p_service_uuid      = service_uuid,
+		.service_uuid_len    = sizeof(setup_uuid_base),
+		.p_service_uuid      = setup_uuid_base,
 		.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
@@ -148,7 +147,7 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_NB] =
 				[IDX_SVC]        =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &primary_service_uuid, ESP_GATT_PERM_READ,
-								 sizeof(uint16_t), sizeof(GATTS_SERVICE_UUID_TEST), (uint8_t*) &GATTS_SERVICE_UUID_TEST }},
+								 ESP_UUID_LEN_128, ESP_UUID_LEN_128, setup_service_uuid }},
 
 				/* Characteristic Declaration */
 				[IDX_CHAR_A]     =
@@ -243,8 +242,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 	}
 }
 
-static void
-gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
+static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+										esp_ble_gatts_cb_param_t* param) {
 	switch (event) {
 		case ESP_GATTS_REG_EVT: {
 			esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(SAMPLE_DEVICE_NAME);
