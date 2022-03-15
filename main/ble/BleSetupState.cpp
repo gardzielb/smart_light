@@ -40,7 +40,12 @@
 
 static uint8_t adv_config_done = 0;
 
-uint16_t heart_rate_handle_table[HRS_IDX_COUNT];
+uint16_t smart_light_handle_table[HRS_IDX_COUNT];
+
+static SetupData setupData = {
+		.mode = SM_MODE_MQTT,
+		.controlPoint = SETUP_IN_PROGRESS
+};
 
 /* The length of adv data must be less than 31 bytes */
 static esp_ble_adv_data_t adv_data = {
@@ -234,6 +239,34 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 	}
 }
 
+static void handle_write_event(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
+	ESP_LOGI(
+			GATTS_TABLE_TAG, "ESP_GATTS_WRITE_EVT: handle = %u, data len = %u", param->write.handle,
+			param->write.len
+	);
+
+	if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_WIFI_SSID]) {
+		memcpy(setupData.wifiSsid, param->write.value, param->write.len);
+		ESP_LOGI(GATTS_TABLE_TAG, "Setting WiFi SSID");
+	}
+	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_WIFI_PASSWD]) {
+		memcpy(setupData.wifiPasswd, param->write.value, param->write.len);
+		ESP_LOGI(GATTS_TABLE_TAG, "Setting WiFi passwd");
+	}
+	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_MODE]) {
+		setupData.mode = param->write.value[0];
+		ESP_LOGI(GATTS_TABLE_TAG, "Setting mode");
+	}
+	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT]) {
+		setupData.controlPoint = param->write.value[0];
+		ESP_LOGI(GATTS_TABLE_TAG, "Setting CP value");
+	}
+
+	if (param->write.need_rsp) {
+		esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
+	}
+}
+
 static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
 										esp_ble_gatts_cb_param_t* param) {
 	switch (event) {
@@ -265,6 +298,9 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			break;
 		case ESP_GATTS_READ_EVT:
 			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_READ_EVT");
+			break;
+		case ESP_GATTS_WRITE_EVT:
+			handle_write_event(gatts_if, param);
 			break;
 		case ESP_GATTS_MTU_EVT:
 			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
@@ -306,8 +342,8 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			else {
 				ESP_LOGI(GATTS_TABLE_TAG, "create attribute table successfully, the number handle = %d\n",
 						 param->add_attr_tab.num_handle);
-				memcpy(heart_rate_handle_table, param->add_attr_tab.handles, sizeof(heart_rate_handle_table));
-				esp_ble_gatts_start_service(heart_rate_handle_table[IDX_SVC]);
+				memcpy(smart_light_handle_table, param->add_attr_tab.handles, sizeof(smart_light_handle_table));
+				esp_ble_gatts_start_service(smart_light_handle_table[IDX_SVC]);
 			}
 			break;
 		}
@@ -416,5 +452,13 @@ void BleSetupState::begin() {
 }
 
 void BleSetupState::loop() {
+	if (setupData.controlPoint == SETUP_READY) {
+		ESP_LOGI(GATTS_TABLE_TAG, "Setup ready, connecting to WiFi %s", setupData.wifiSsid);
+	}
+
+	if (setupData.controlPoint == SETUP_DONE) {
+		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, transit state %u", setupData.mode);
+	}
+
 	vTaskDelay(200 / portTICK_PERIOD_MS);
 }
