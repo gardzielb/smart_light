@@ -19,6 +19,9 @@
 #include "esp_bt_main.h"
 #include "esp_gatt_common_api.h"
 
+#include "mqtt/MqttSlaveState.h"
+#include "tcp/TcpSlaveState.h"
+
 
 #define GATTS_TABLE_TAG "SMART_LIGHT_GATTS_TABLE"
 
@@ -390,6 +393,9 @@ BleSetupState::BleSetupState(SmartLightFSM* fsm)
 		: SmartLightState(fsm) {}
 
 void BleSetupState::begin() {
+	memset(setupData.wifiSsid, 0, sizeof(setupData.wifiSsid));
+	memset(setupData.wifiPasswd, 0, sizeof(setupData.wifiPasswd));
+
 	esp_err_t ret;
 
 	/* Initialize NVS. */
@@ -454,10 +460,17 @@ void BleSetupState::begin() {
 void BleSetupState::loop() {
 	if (setupData.controlPoint == SETUP_READY) {
 		ESP_LOGI(GATTS_TABLE_TAG, "Setup ready, connecting to WiFi %s", setupData.wifiSsid);
+
+
 	}
 
 	if (setupData.controlPoint == SETUP_DONE) {
-		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, transit state %u", setupData.mode);
+		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, transiting to state %u", setupData.mode);
+
+		if (setupData.mode == SM_MODE_TCP)
+			m_fsm->setState(new TcpSlaveState(m_fsm));
+		else
+			m_fsm->setState(new MqttSlaveState(m_fsm));
 	}
 
 	vTaskDelay(200 / portTICK_PERIOD_MS);

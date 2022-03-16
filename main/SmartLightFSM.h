@@ -33,12 +33,7 @@ protected:
 	inline SmartLightState(SmartLightFSM* fsm)
 			: m_fsm(fsm) {}
 
-	inline void TransitTo(SmartLightState* state) {
-		m_fsm->setState(state);
-	}
-
-private:
-	SmartLightFSM* m_fsm;
+	SmartLightFSM* const m_fsm;
 };
 
 
