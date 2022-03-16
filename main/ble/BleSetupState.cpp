@@ -42,6 +42,8 @@
 #define SCAN_RSP_CONFIG_FLAG        (1 << 1)
 
 static uint8_t adv_config_done = 0;
+static uint16_t connection_id;
+static bool is_connected = false;
 
 uint16_t smart_light_handle_table[HRS_IDX_COUNT];
 
@@ -328,11 +330,17 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			conn_params.timeout = 400;    // timeout = 400*10ms = 4000ms
 			//start sent the update connection parameters to the peer device.
 			esp_ble_gap_update_conn_params(&conn_params);
+
+			is_connected = true;
+			connection_id = param->connect.conn_id;
 			break;
 		}
 		case ESP_GATTS_DISCONNECT_EVT:
 			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_DISCONNECT_EVT, reason = 0x%x", param->disconnect.reason);
-			esp_ble_gap_start_advertising(&adv_params);
+			if (param->disconnect.reason != ESP_GATT_CONN_TERMINATE_LOCAL_HOST) {
+				esp_ble_gap_start_advertising(&adv_params);
+			}
+			is_connected = false;
 			break;
 		case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
 			if (param->add_attr_tab.status != ESP_GATT_OK) {
@@ -464,14 +472,32 @@ void BleSetupState::loop() {
 
 	}
 
-	if (setupData.controlPoint == SETUP_DONE) {
-		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, transiting to state %u", setupData.mode);
+	else if (setupData.controlPoint == SETUP_DONE) {
+		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, turning off BLE");
+
+		if (is_connected) {
+			ESP_LOGI(GATTS_TABLE_TAG, "Disconnecting current client");
+
+			esp_err_t disconnect_result = esp_ble_gatts_close(
+					heart_rate_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id
+			);
+			if (disconnect_result != ESP_OK) {
+				ESP_LOGW(GATTS_TABLE_TAG, "Failed to disconnect client");
+			}
+		}
+
+		ESP_ERROR_CHECK(esp_bluedroid_disable());
+		ESP_ERROR_CHECK(esp_bluedroid_deinit());
+
+		ESP_ERROR_CHECK(esp_bt_controller_disable());
+		ESP_ERROR_CHECK(esp_bt_controller_deinit());
 
 		if (setupData.mode == SM_MODE_TCP)
 			m_fsm->setState(new TcpSlaveState(m_fsm));
 		else
 			m_fsm->setState(new MqttSlaveState(m_fsm));
 	}
-
-	vTaskDelay(200 / portTICK_PERIOD_MS);
+	else {
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
 }
