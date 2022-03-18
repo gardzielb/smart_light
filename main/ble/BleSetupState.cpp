@@ -10,7 +10,6 @@
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_log.h"
-#include "nvs_flash.h"
 
 #include "esp_bt.h"
 
@@ -21,6 +20,7 @@
 
 #include "mqtt/MqttSlaveState.h"
 #include "tcp/TcpSlaveState.h"
+#include "wifi/WiFi.h"
 
 
 #define GATTS_TABLE_TAG "SMART_LIGHT_GATTS_TABLE"
@@ -28,14 +28,12 @@
 #define PROFILE_NUM                 1
 #define PROFILE_APP_IDX             0
 #define ESP_APP_ID                  0x69
-#define SAMPLE_DEVICE_NAME          "Smart Light"
+#define BLE_DEVICE_NAME          "Smart Light"
 #define SVC_INST_ID                 0
 
 /* The max length of characteristic value. When the GATT client performs a write or prepare write operation,
 *  the data length must be less than GATTS_DEMO_CHAR_VAL_LEN_MAX.
 */
-#define GATTS_DEMO_CHAR_VAL_LEN_MAX 500
-#define PREPARE_BUF_MAX_SIZE        1024
 #define CHAR_DECLARATION_SIZE       (sizeof(uint8_t))
 
 #define ADV_CONFIG_FLAG             (1 << 0)
@@ -97,7 +95,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
 										esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param);
 
 /* One gatt-based profile one app_id and one gatts_if, this array will store the gatts_if returned by ESP_GATTS_REG_EVT */
-static struct gatts_profile_inst heart_rate_profile_tab[PROFILE_NUM] = {
+static struct gatts_profile_inst smart_light_profile_tab[PROFILE_NUM] = {
 		[PROFILE_APP_IDX] = {
 				.gatts_cb = gatts_profile_event_handler,
 				.gatts_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
@@ -149,7 +147,7 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, wifi_ssid_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+								 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiSsid }},
 
 				/* Characteristic Declaration */
 				[IDX_CHAR_WIFI_PASSWD]      =
@@ -162,7 +160,7 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, wifi_passwd_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+								 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiPasswd }},
 
 				/* Characteristic Declaration */
 				[IDX_CHAR_MODE]      =
@@ -175,7 +173,7 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, mode_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+								 sizeof(setupData.mode), sizeof(setupData.mode), &setupData.mode }},
 
 				/* Characteristic Declaration */
 				[IDX_CHAR_CONTROL_POINT]     =
@@ -188,7 +186,7 @@ static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, control_point_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 GATTS_DEMO_CHAR_VAL_LEN_MAX, 0, NULL }},
+								 sizeof(setupData.controlPoint), sizeof(setupData.controlPoint), &setupData.controlPoint }},
 
 				/* Client Characteristic Configuration Descriptor */
 				[IDX_CHAR_CFG_CONTROL_POINT]  =
@@ -276,7 +274,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 										esp_ble_gatts_cb_param_t* param) {
 	switch (event) {
 		case ESP_GATTS_REG_EVT: {
-			esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(SAMPLE_DEVICE_NAME);
+			esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
 			if (set_dev_name_ret) {
 				ESP_LOGE(GATTS_TABLE_TAG, "set device name failed, error code = %x", set_dev_name_ret);
 			}
@@ -376,7 +374,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 	/* If event is register event, store the gatts_if for each profile */
 	if (event == ESP_GATTS_REG_EVT) {
 		if (param->reg.status == ESP_GATT_OK) {
-			heart_rate_profile_tab[PROFILE_APP_IDX].gatts_if = gatts_if;
+			smart_light_profile_tab[PROFILE_APP_IDX].gatts_if = gatts_if;
 		}
 		else {
 			ESP_LOGE(GATTS_TABLE_TAG, "reg app failed, app_id %04x, status %d",
@@ -388,9 +386,9 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 	int idx;
 	for (idx = 0; idx < PROFILE_NUM; idx++) {
 		/* ESP_GATT_IF_NONE, not specify a certain gatt_if, need to call every profile cb function */
-		if (gatts_if == ESP_GATT_IF_NONE || gatts_if == heart_rate_profile_tab[idx].gatts_if) {
-			if (heart_rate_profile_tab[idx].gatts_cb) {
-				heart_rate_profile_tab[idx].gatts_cb(event, gatts_if, param);
+		if (gatts_if == ESP_GATT_IF_NONE || gatts_if == smart_light_profile_tab[idx].gatts_if) {
+			if (smart_light_profile_tab[idx].gatts_cb) {
+				smart_light_profile_tab[idx].gatts_cb(event, gatts_if, param);
 			}
 		}
 	}
@@ -404,20 +402,10 @@ void BleSetupState::begin() {
 	memset(setupData.wifiSsid, 0, sizeof(setupData.wifiSsid));
 	memset(setupData.wifiPasswd, 0, sizeof(setupData.wifiPasswd));
 
-	esp_err_t ret;
-
-	/* Initialize NVS. */
-	ret = nvs_flash_init();
-	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-		ESP_ERROR_CHECK(nvs_flash_erase());
-		ret = nvs_flash_init();
-	}
-	ESP_ERROR_CHECK(ret);
-
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-	ret = esp_bt_controller_init(&bt_cfg);
+	esp_err_t ret = esp_bt_controller_init(&bt_cfg);
 	if (ret) {
 		ESP_LOGE(GATTS_TABLE_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
 		return;
@@ -469,7 +457,22 @@ void BleSetupState::loop() {
 	if (setupData.controlPoint == SETUP_READY) {
 		ESP_LOGI(GATTS_TABLE_TAG, "Setup ready, connecting to WiFi %s", setupData.wifiSsid);
 
+		setupData.controlPoint = SETUP_WIFI_CONNECTING;
+		esp_ble_gatts_send_indicate(
+				smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
+				smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT],
+				sizeof(setupData.controlPoint), &setupData.controlPoint, false
+		);
 
+		wifiInit();
+		wifiConnect(setupData.wifiSsid, setupData.wifiPasswd);
+
+		setupData.controlPoint = SETUP_WIFI_CONNECTED;
+		esp_ble_gatts_send_indicate(
+				smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
+				smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT],
+				sizeof(setupData.controlPoint), &setupData.controlPoint, false
+		);
 	}
 
 	else if (setupData.controlPoint == SETUP_DONE) {
@@ -479,7 +482,7 @@ void BleSetupState::loop() {
 			ESP_LOGI(GATTS_TABLE_TAG, "Disconnecting current client");
 
 			esp_err_t disconnect_result = esp_ble_gatts_close(
-					heart_rate_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id
+					smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id
 			);
 			if (disconnect_result != ESP_OK) {
 				ESP_LOGW(GATTS_TABLE_TAG, "Failed to disconnect client");
