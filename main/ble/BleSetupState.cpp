@@ -474,7 +474,6 @@ void BleSetupState::loop() {
 				sizeof(setupData.controlPoint), &setupData.controlPoint, false
 		);
 	}
-
 	else if (setupData.controlPoint == SETUP_DONE) {
 		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, turning off BLE");
 
