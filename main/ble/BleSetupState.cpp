@@ -29,7 +29,8 @@
 #define PROFILE_APP_IDX             0
 #define ESP_APP_ID                  0x69
 #define BLE_DEVICE_NAME          "Smart Light"
-#define SVC_INST_ID                 0
+#define SETUP_SVC_INST_ID                 0
+#define MQTT_SVC_INST_ID                  1
 
 /* The max length of characteristic value. When the GATT client performs a write or prepare write operation,
 *  the data length must be less than GATTS_DEMO_CHAR_VAL_LEN_MAX.
@@ -43,11 +44,20 @@ static uint8_t adv_config_done = 0;
 static uint16_t connection_id;
 static bool is_connected = false;
 
-uint16_t smart_light_handle_table[HRS_IDX_COUNT];
+uint16_t smart_light_handle_table[SETUP_IDX_COUNT + MQTT_IDX_COUNT];
 
 static SetupData setupData = {
+		.wifiSsid = {},
+		.wifiPasswd = {},
 		.mode = SM_MODE_MQTT,
 		.controlPoint = SETUP_IN_PROGRESS
+};
+
+static MqttData mqttData = {
+		.name = {},
+		.passwd = {},
+		.brokerIp = { 192, 168, 0, 102 },
+		.brokerPort = 1883
 };
 
 /* The length of adv data must be less than 31 bytes */
@@ -107,16 +117,27 @@ static uint8_t setup_uuid_base[16] = {
 		0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
 };
 
+static uint8_t mqtt_uuid_base[16] = {
+		0x0d, 0x86, 0x31, 0xef, 0xf7, 0x8d, 0xde, 0xb7,
+		0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
+};
+
 #define MAKE_UUID_128(base, id) { \
         base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], \
         base[8], base[9], base[10], base[11], id & 0xFF, (id >> 8) & 0xFF, base[14], base[15] \
 }
 
-static uint8_t setup_service_uuid[16] = MAKE_UUID_128(setup_uuid_base, 1);
-static uint8_t wifi_ssid_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 2);
-static uint8_t wifi_passwd_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 3);
-static uint8_t mode_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 4);
-static uint8_t control_point_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, 5);
+static uint8_t setup_service_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_SVC);
+static uint8_t wifi_ssid_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHAR_WIFI_SSID);
+static uint8_t wifi_passwd_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHAR_WIFI_PASSWD);
+static uint8_t mode_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHAR_MODE);
+static uint8_t control_point_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHAR_CONTROL_POINT);
+
+static uint8_t mqtt_service_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_SVC);
+static uint8_t mqtt_name_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_NAME);
+static uint8_t mqtt_passwd_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_PASSWD);
+static uint8_t mqtt_broker_ip_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_BROKER_IP);
+static uint8_t mqtt_broker_port_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_BROKER_PORT);
 
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
@@ -124,77 +145,138 @@ static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_C
 static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE;
 static const uint8_t char_prop_read_write_notify =
 		ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
-static const uint8_t heart_measurement_ccc[2] = { 0x00, 0x00 };
+static const uint8_t setup_cp_ccc[2] = { 0x00, 0x00 };
 
 
 /* Full Database Description - Used to add attributes into the database */
-static const esp_gatts_attr_db_t gatt_db[HRS_IDX_COUNT] =
+static const esp_gatts_attr_db_t setup_attr_tab[SETUP_IDX_COUNT] =
 		{
 				// Service Declaration
-				[IDX_SVC]        =
+				[SETUP_IDX_SVC] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &primary_service_uuid, ESP_GATT_PERM_READ,
 								 ESP_UUID_LEN_128, ESP_UUID_LEN_128, setup_service_uuid }},
 
 				/* Characteristic Declaration */
-				[IDX_CHAR_WIFI_SSID]      =
+				[SETUP_IDX_CHAR_WIFI_SSID] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
 								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
 
 				/* Characteristic Value */
-				[IDX_CHAR_VAL_WIFI_SSID]  =
+				[SETUP_IDX_CHAR_VAL_WIFI_SSID] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, wifi_ssid_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 								 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiSsid }},
 
 				/* Characteristic Declaration */
-				[IDX_CHAR_WIFI_PASSWD]      =
+				[SETUP_IDX_CHAR_WIFI_PASSWD] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
 								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
 
 				/* Characteristic Value */
-				[IDX_CHAR_VAL_WIFI_PASSWD]  =
+				[SETUP_IDX_CHAR_VAL_WIFI_PASSWD] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, wifi_passwd_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 								 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiPasswd }},
 
 				/* Characteristic Declaration */
-				[IDX_CHAR_MODE]      =
+				[SETUP_IDX_CHAR_MODE] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
 								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
 
 				/* Characteristic Value */
-				[IDX_CHAR_VAL_MODE]  =
+				[SETUP_IDX_CHAR_VAL_MODE] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, mode_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 								 sizeof(setupData.mode), sizeof(setupData.mode), &setupData.mode }},
 
 				/* Characteristic Declaration */
-				[IDX_CHAR_CONTROL_POINT]     =
+				[SETUP_IDX_CHAR_CONTROL_POINT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
 								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write_notify }},
 
 				/* Characteristic Value */
-				[IDX_CHAR_VAL_CONTROL_POINT] =
+				[SETUP_IDX_CHAR_VAL_CONTROL_POINT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_128, control_point_char_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 								 sizeof(setupData.controlPoint), sizeof(setupData.controlPoint), &setupData.controlPoint }},
 
 				/* Client Characteristic Configuration Descriptor */
-				[IDX_CHAR_CFG_CONTROL_POINT]  =
+				[SETUP_IDX_CHAR_CFG_CONTROL_POINT] =
 						{{ ESP_GATT_AUTO_RSP },
 						 { ESP_UUID_LEN_16, (uint8_t*) &character_client_config_uuid,
 								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-								 sizeof(uint16_t), sizeof(heart_measurement_ccc), (uint8_t*) heart_measurement_ccc }}
+								 sizeof(uint16_t), sizeof(setup_cp_ccc), (uint8_t*) setup_cp_ccc }}
 		};
+
+/* Full Database Description - Used to add attributes into the database */
+//static const esp_gatts_attr_db_t mqtt_attr_tab[MQTT_IDX_COUNT] =
+//		{
+//				[MQTT_IDX_SVC] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_16, (uint8_t*) &primary_service_uuid, ESP_GATT_PERM_READ,
+//								 ESP_UUID_LEN_128, ESP_UUID_LEN_128, mqtt_service_uuid }},
+//
+//				/* Characteristic Declaration */
+//				[MQTT_IDX_CHAR_MQTT_NAME] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+//
+//				/* Characteristic Value */
+//				[MQTT_IDX_CHAR_VAL_MQTT_NAME] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_128, mqtt_name_char_uuid,
+//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+//								 ESP_GATT_DEF_BLE_MTU_SIZE, 0, NULL }},
+//
+//				/* Characteristic Declaration */
+//				[MQTT_IDX_CHAR_MQTT_PASSWD] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+//
+//				/* Characteristic Value */
+//				[MQTT_IDX_CHAR_VAL_MQTT_PASSWD] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_128, mqtt_passwd_char_uuid,
+//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+//								 ESP_GATT_DEF_BLE_MTU_SIZE, 0, NULL }},
+//
+//				/* Characteristic Declaration */
+//				[MQTT_IDX_CHAR_MQTT_BROKER_IP] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+//
+//				/* Characteristic Value */
+//				[MQTT_IDX_CHAR_VAL_MQTT_BROKER_IP] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_128, mqtt_broker_ip_char_uuid,
+//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+//								 IPV4_ADDR_LEN, IPV4_ADDR_LEN, mqttData.brokerIp }},
+//
+//				/* Characteristic Declaration */
+//				[MQTT_IDX_CHAR_MQTT_BROKER_PORT] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+//
+//				/* Characteristic Value */
+//				[MQTT_IDX_CHAR_VAL_MQTT_BROKER_PORT] =
+//						{{ ESP_GATT_AUTO_RSP },
+//						 { ESP_UUID_LEN_128, mqtt_broker_port_char_uuid,
+//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+//								 sizeof(mqttData.brokerPort), sizeof(mqttData.brokerPort), (uint8_t*) &mqttData.brokerPort }}
+//		};
 
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
 	switch (event) {
@@ -243,24 +325,19 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 }
 
 static void handle_write_event(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
-	ESP_LOGI(
-			GATTS_TABLE_TAG, "ESP_GATTS_WRITE_EVT: handle = %u, data len = %u", param->write.handle,
-			param->write.len
-	);
-
-	if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_WIFI_SSID]) {
+	if (param->write.handle == smart_light_handle_table[SETUP_IDX_CHAR_VAL_WIFI_SSID]) {
 		memcpy(setupData.wifiSsid, param->write.value, param->write.len);
 		ESP_LOGI(GATTS_TABLE_TAG, "Setting WiFi SSID");
 	}
-	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_WIFI_PASSWD]) {
+	else if (param->write.handle == smart_light_handle_table[SETUP_IDX_CHAR_VAL_WIFI_PASSWD]) {
 		memcpy(setupData.wifiPasswd, param->write.value, param->write.len);
 		ESP_LOGI(GATTS_TABLE_TAG, "Setting WiFi passwd");
 	}
-	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_MODE]) {
+	else if (param->write.handle == smart_light_handle_table[SETUP_IDX_CHAR_VAL_MODE]) {
 		setupData.mode = param->write.value[0];
 		ESP_LOGI(GATTS_TABLE_TAG, "Setting mode");
 	}
-	else if (param->write.handle == smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT]) {
+	else if (param->write.handle == smart_light_handle_table[SETUP_IDX_CHAR_VAL_CONTROL_POINT]) {
 		setupData.controlPoint = param->write.value[0];
 		ESP_LOGI(GATTS_TABLE_TAG, "Setting CP value");
 	}
@@ -293,10 +370,20 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 				ESP_LOGE(GATTS_TABLE_TAG, "config scan response data failed, error code = %x", ret);
 			}
 			adv_config_done |= SCAN_RSP_CONFIG_FLAG;
-			esp_err_t create_attr_ret = esp_ble_gatts_create_attr_tab(gatt_db, gatts_if, HRS_IDX_COUNT, SVC_INST_ID);
+
+			esp_err_t create_attr_ret = esp_ble_gatts_create_attr_tab(
+					setup_attr_tab, gatts_if, SETUP_IDX_COUNT, SETUP_SVC_INST_ID
+			);
 			if (create_attr_ret) {
-				ESP_LOGE(GATTS_TABLE_TAG, "create attr table failed, error code = %x", create_attr_ret);
+				ESP_LOGE(GATTS_TABLE_TAG, "create setup attr table failed, error code = %x", create_attr_ret);
 			}
+
+//			create_attr_ret = esp_ble_gatts_create_attr_tab(
+//					mqtt_attr_tab, gatts_if, MQTT_IDX_COUNT, MQTT_SVC_INST_ID
+//			);
+//			if (create_attr_ret) {
+//				ESP_LOGE(GATTS_TABLE_TAG, "create mqtt attr table failed, error code = %x", create_attr_ret);
+//			}
 		}
 			break;
 		case ESP_GATTS_READ_EVT:
@@ -344,15 +431,19 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			if (param->add_attr_tab.status != ESP_GATT_OK) {
 				ESP_LOGE(GATTS_TABLE_TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
 			}
-			else if (param->add_attr_tab.num_handle != HRS_IDX_COUNT) {
-				ESP_LOGE(GATTS_TABLE_TAG, "create attribute table abnormally, num_handle (%d) \
-                        doesn't equal to HRS_IDX_COUNT(%d)", param->add_attr_tab.num_handle, HRS_IDX_COUNT);
+			else if (param->add_attr_tab.num_handle != SETUP_IDX_COUNT) {
+				ESP_LOGE(
+						GATTS_TABLE_TAG, "create attribute table abnormally, num_handle (%d) \
+                        doesn't equal to SETUP_IDX_COUNT(%d)", param->add_attr_tab.num_handle, SETUP_IDX_COUNT
+				);
 			}
 			else {
-				ESP_LOGI(GATTS_TABLE_TAG, "create attribute table successfully, the number handle = %d\n",
-						 param->add_attr_tab.num_handle);
+				ESP_LOGI(
+						GATTS_TABLE_TAG, "create attribute table successfully, the number handle = %d\n",
+						param->add_attr_tab.num_handle
+				);
 				memcpy(smart_light_handle_table, param->add_attr_tab.handles, sizeof(smart_light_handle_table));
-				esp_ble_gatts_start_service(smart_light_handle_table[IDX_SVC]);
+				esp_ble_gatts_start_service(smart_light_handle_table[SETUP_IDX_SVC]);
 			}
 			break;
 		}
@@ -399,8 +490,8 @@ BleSetupState::BleSetupState(SmartLightFSM* fsm)
 		: SmartLightState(fsm) {}
 
 void BleSetupState::begin() {
-	memset(setupData.wifiSsid, 0, sizeof(setupData.wifiSsid));
-	memset(setupData.wifiPasswd, 0, sizeof(setupData.wifiPasswd));
+//	memset(setupData.wifiSsid, 0, sizeof(setupData.wifiSsid));
+//	memset(setupData.wifiPasswd, 0, sizeof(setupData.wifiPasswd));
 
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
@@ -460,7 +551,7 @@ void BleSetupState::loop() {
 		setupData.controlPoint = SETUP_WIFI_CONNECTING;
 		esp_ble_gatts_send_indicate(
 				smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
-				smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT],
+				smart_light_handle_table[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
 				sizeof(setupData.controlPoint), &setupData.controlPoint, false
 		);
 
@@ -470,7 +561,7 @@ void BleSetupState::loop() {
 		setupData.controlPoint = SETUP_WIFI_CONNECTED;
 		esp_ble_gatts_send_indicate(
 				smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
-				smart_light_handle_table[IDX_CHAR_VAL_CONTROL_POINT],
+				smart_light_handle_table[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
 				sizeof(setupData.controlPoint), &setupData.controlPoint, false
 		);
 	}
