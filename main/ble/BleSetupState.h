@@ -42,15 +42,6 @@ struct SetupData {
 	uint8_t controlPoint;
 };
 
-#define IPV4_ADDR_LEN 4
-
-struct MqttData {
-	char name[ESP_GATT_DEF_BLE_MTU_SIZE];
-	char passwd[ESP_GATT_DEF_BLE_MTU_SIZE];
-	uint8_t brokerIp[IPV4_ADDR_LEN];
-	uint16_t brokerPort;
-};
-
 
 enum SetupServiceIndex {
 	SETUP_IDX_SVC,

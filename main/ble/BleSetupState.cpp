@@ -53,8 +53,8 @@ static SetupData setupData = {
 		.controlPoint = SETUP_IN_PROGRESS
 };
 
-static MqttData mqttData = {
-		.name = {},
+static MqttConfig mqttData = {
+		.username = {},
 		.passwd = {},
 		.brokerIp = { 192, 168, 0, 102 },
 		.brokerPort = 1883
@@ -585,10 +585,13 @@ void BleSetupState::loop() {
 		ESP_ERROR_CHECK(esp_bt_controller_disable());
 		ESP_ERROR_CHECK(esp_bt_controller_deinit());
 
-		if (setupData.mode == SM_MODE_TCP)
+		if (setupData.mode == SM_MODE_TCP) {
 			m_fsm->setState(new TcpSlaveState(m_fsm));
-		else
-			m_fsm->setState(new MqttSlaveState(m_fsm));
+		} else {
+			strcpy(mqttData.username, "esp");
+			strcpy(mqttData.passwd, "mellon");
+			m_fsm->setState(new MqttSlaveState(m_fsm, mqttData));
+		}
 	}
 	else {
 		vTaskDelay(100 / portTICK_PERIOD_MS);
