@@ -9,6 +9,7 @@
 #include "mqtt_client.h"
 
 #include "SmartLightFSM.h"
+#include "LedRing.h"
 
 #define IPV4_LEN 4
 #define MQTT_CRED_MAX_LEN 20
@@ -33,6 +34,7 @@ public:
 private:
 	MqttConfig m_config;
 	esp_mqtt_client_handle_t m_mqttClient;
+	LedRing m_ledRing;
 };
 
 

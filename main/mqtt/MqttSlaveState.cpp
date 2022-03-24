@@ -9,6 +9,8 @@
 #include "freertos/task.h"
 
 #define LOGGER_TAG "MQQT_SLAVE"
+#define LED_RING_PIN GPIO_NUM_5
+#define LED_RING_LED_COUNT 12
 
 
 static void log_error_if_nonzero(const char* message, int error_code) {
@@ -27,8 +29,10 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 	switch ((esp_mqtt_event_id_t) eventId) {
 		case MQTT_EVENT_CONNECTED:
 			ESP_LOGI(LOGGER_TAG, "MQTT_EVENT_CONNECTED");
-			msg_id = esp_mqtt_client_publish(client, "/smart_light/devices", "hello there", 0, 1, 0);
+			msg_id = esp_mqtt_client_publish(client, "/smart_light/devices", "hello there", 0, 0, 0);
 			ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, "/smart_light/sl00", 0);
+			ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
 			break;
 
 		case MQTT_EVENT_DISCONNECTED:
@@ -49,8 +53,9 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 
 		case MQTT_EVENT_DATA:
 			ESP_LOGI(LOGGER_TAG, "MQTT_EVENT_DATA");
-			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-			printf("DATA=%.*s\r\n", event->data_len, event->data);
+			ESP_LOGI(
+				LOGGER_TAG, "TOPIC=%.*s, DATA=%.*s\n", event->topic_len, event->topic, event->data_len, event->data
+			);
 			break;
 
 		case MQTT_EVENT_ERROR:
@@ -73,10 +78,13 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 
 
 MqttSlaveState::MqttSlaveState(SmartLightFSM* fsm, MqttConfig config)
-	: SmartLightState(fsm), m_config(config) {}
+	: SmartLightState(fsm), m_config(config), m_ledRing(LED_RING_LED_COUNT, LED_RING_PIN) {}
 
 void MqttSlaveState::begin() {
 	ESP_LOGI(LOGGER_TAG, "Entering MQTT slave state");
+
+	m_ledRing.initialize();
+	m_ledRing.setColor(64, 0, 16);
 
 	char brokerIpStr[IPV4_LEN * 4] = {};
 	sprintf(
@@ -100,6 +108,5 @@ void MqttSlaveState::begin() {
 }
 
 void MqttSlaveState::loop() {
-	esp_mqtt_client_publish(m_mqttClient, "/smart_light/devices", "hello again", 0, 1, 0);
-	vTaskDelay(2000 / portTICK_PERIOD_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 }
