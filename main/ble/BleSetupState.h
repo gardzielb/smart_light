@@ -88,7 +88,8 @@ enum SmartLightBleService {
 };
 
 
-struct GattCharData {
+struct GattServiceData {
+	uint32_t attrCount;
 	uint16_t handles[SETUP_IDX_COUNT + MQTT_IDX_COUNT];
 	uint8_t* data[SETUP_IDX_COUNT + MQTT_IDX_COUNT];
 };

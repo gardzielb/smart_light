@@ -23,7 +23,7 @@
 #include "wifi/WiFi.h"
 
 
-#define GATTS_TABLE_TAG "SMART_LIGHT_GATTS_TABLE"
+#define BLE_LOG_TAG "SMART_LIGHT_GATTS_TABLE"
 
 #define PROFILE_NUM                 1
 #define PROFILE_APP_IDX             0
@@ -145,7 +145,8 @@ static const uint8_t char_prop_read_write_notify =
 	ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 static const uint8_t setup_cp_ccc[2] = { 0x00, 0x00 };
 
-static GattCharData smartLightGattData = {};
+static GattServiceData smartLightGattData[SL_BLE_SVC_COUNT] = {{},
+															   {}};
 
 
 /* Full Database Description - Used to add attributes into the database */
@@ -295,22 +296,22 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 		case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
 			/* advertising start complete event to indicate advertising start successfully or failed */
 			if (param->adv_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
-				ESP_LOGE(GATTS_TABLE_TAG, "advertising start failed");
+				ESP_LOGE(BLE_LOG_TAG, "advertising start failed");
 			}
 			else {
-				ESP_LOGI(GATTS_TABLE_TAG, "advertising start successfully");
+				ESP_LOGI(BLE_LOG_TAG, "advertising start successfully");
 			}
 			break;
 		case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
 			if (param->adv_stop_cmpl.status != ESP_BT_STATUS_SUCCESS) {
-				ESP_LOGE(GATTS_TABLE_TAG, "Advertising stop failed");
+				ESP_LOGE(BLE_LOG_TAG, "Advertising stop failed");
 			}
 			else {
-				ESP_LOGI(GATTS_TABLE_TAG, "Stop adv successfully\n");
+				ESP_LOGI(BLE_LOG_TAG, "Stop adv successfully\n");
 			}
 			break;
 		case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG,
+			ESP_LOGI(BLE_LOG_TAG,
 					 "update connection params status = %d, min_int = %d, max_int = %d,conn_int = %d,latency = %d, timeout = %d",
 					 param->update_conn_params.status,
 					 param->update_conn_params.min_int,
@@ -325,10 +326,13 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 }
 
 static void handle_write_event(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
-	int charCount = SETUP_IDX_COUNT;
-	for (int i = 0; i < charCount; i++) {
-		if (param->write.handle == smartLightGattData.handles[i] && smartLightGattData.data[i] != NULL) {
-			memcpy(smartLightGattData.data[i], param->write.value, param->write.len);
+	for (int i = 0; i < SL_BLE_SVC_COUNT; i++) {
+		auto svcGattData = &smartLightGattData[i];
+		for (int j = 0; j < svcGattData->attrCount; j++) {
+			if (svcGattData->data[j] && param->write.handle == svcGattData->handles[j]) {
+				memcpy(svcGattData->data[j], param->write.value, param->write.len);
+				ESP_LOGI(BLE_LOG_TAG, "Savied data for %u attr of service %u", j, i);
+			}
 		}
 	}
 
@@ -343,13 +347,13 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 		case ESP_GATTS_REG_EVT: {
 			esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
 			if (set_dev_name_ret) {
-				ESP_LOGE(GATTS_TABLE_TAG, "set device name failed, error code = %x", set_dev_name_ret);
+				ESP_LOGE(BLE_LOG_TAG, "set device name failed, error code = %x", set_dev_name_ret);
 			}
 
 			//config adv data
 			esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
 			if (ret) {
-				ESP_LOGE(GATTS_TABLE_TAG, "config adv data failed, error code = %x", ret);
+				ESP_LOGE(BLE_LOG_TAG, "config adv data failed, error code = %x", ret);
 			}
 			adv_config_done |= ADV_CONFIG_FLAG;
 
@@ -357,7 +361,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			adv_data.set_scan_rsp = true;
 			ret = esp_ble_gap_config_adv_data(&adv_data);
 			if (ret) {
-				ESP_LOGE(GATTS_TABLE_TAG, "config scan response data failed, error code = %x", ret);
+				ESP_LOGE(BLE_LOG_TAG, "config scan response data failed, error code = %x", ret);
 			}
 			adv_config_done |= SCAN_RSP_CONFIG_FLAG;
 
@@ -365,37 +369,38 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 				setup_attr_tab, gatts_if, SETUP_IDX_COUNT, SL_BLE_SVC_SETUP
 			);
 			if (create_attr_ret) {
-				ESP_LOGE(GATTS_TABLE_TAG, "create setup attr table failed, error code = %x", create_attr_ret);
+				ESP_LOGE(BLE_LOG_TAG, "create setup attr table failed, error code = %x", create_attr_ret);
 			}
 
 //			create_attr_ret = esp_ble_gatts_create_attr_tab(
 //					mqtt_attr_tab, gatts_if, MQTT_IDX_COUNT, MQTT_SVC_INST_ID
 //			);
 //			if (create_attr_ret) {
-//				ESP_LOGE(GATTS_TABLE_TAG, "create mqtt attr table failed, error code = %x", create_attr_ret);
+//				ESP_LOGE(BLE_LOG_TAG, "create mqtt attr table failed, error code = %x", create_attr_ret);
 //			}
 		}
 			break;
 		case ESP_GATTS_READ_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_READ_EVT");
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_READ_EVT");
 			break;
 		case ESP_GATTS_WRITE_EVT:
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_WRITE_EVT");
 			handle_write_event(gatts_if, param);
 			break;
 		case ESP_GATTS_MTU_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
 			break;
 		case ESP_GATTS_CONF_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_CONF_EVT, status = %d, attr_handle %d", param->conf.status,
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_CONF_EVT, status = %d, attr_handle %d", param->conf.status,
 					 param->conf.handle);
 			break;
 		case ESP_GATTS_START_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG, "SERVICE_START_EVT, status %d, service_handle %d", param->start.status,
+			ESP_LOGI(BLE_LOG_TAG, "SERVICE_START_EVT, status %d, service_handle %d", param->start.status,
 					 param->start.service_handle);
 			break;
 		case ESP_GATTS_CONNECT_EVT: {
-			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_CONNECT_EVT, conn_id = %d", param->connect.conn_id);
-				esp_log_buffer_hex(GATTS_TABLE_TAG, param->connect.remote_bda, 6);
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_CONNECT_EVT, conn_id = %d", param->connect.conn_id);
+				esp_log_buffer_hex(BLE_LOG_TAG, param->connect.remote_bda, 6);
 			esp_ble_conn_update_params_t conn_params = {};
 			memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
 			/* For the iOS system, please refer to Apple official documents about the BLE connection parameters restrictions. */
@@ -411,7 +416,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			break;
 		}
 		case ESP_GATTS_DISCONNECT_EVT:
-			ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_DISCONNECT_EVT, reason = 0x%x", param->disconnect.reason);
+			ESP_LOGI(BLE_LOG_TAG, "ESP_GATTS_DISCONNECT_EVT, reason = 0x%x", param->disconnect.reason);
 			if (param->disconnect.reason != ESP_GATT_CONN_TERMINATE_LOCAL_HOST) {
 				esp_ble_gap_start_advertising(&adv_params);
 			}
@@ -419,30 +424,36 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			break;
 		case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
 			if (param->add_attr_tab.status != ESP_GATT_OK) {
-				ESP_LOGE(GATTS_TABLE_TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
+				ESP_LOGE(BLE_LOG_TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
 			}
 			else if (param->add_attr_tab.num_handle != SETUP_IDX_COUNT) {
 				ESP_LOGE(
-					GATTS_TABLE_TAG, "create attribute table abnormally, num_handle (%d) \
+					BLE_LOG_TAG, "create attribute table abnormally, num_handle (%d) \
                         doesn't equal to SETUP_IDX_COUNT(%d)", param->add_attr_tab.num_handle, SETUP_IDX_COUNT
 				);
 			}
 			else {
 				ESP_LOGI(
-					GATTS_TABLE_TAG, "create attribute table successfully, the number handle = %d\n",
-					param->add_attr_tab.num_handle
+					BLE_LOG_TAG, "create attribute table successfully, service id = %u, attr count = %d\n",
+					param->add_attr_tab.svc_inst_id, param->add_attr_tab.num_handle
 				);
+
+				auto svcGattData = &smartLightGattData[param->add_attr_tab.svc_inst_id];
+				svcGattData->attrCount = param->add_attr_tab.num_handle;
 
 				memcpy(
-					smartLightGattData.handles, param->add_attr_tab.handles,
+					svcGattData->handles, param->add_attr_tab.handles,
 					param->add_attr_tab.num_handle * sizeof(uint16_t)
 				);
-				smartLightGattData.data[SETUP_IDX_CHAR_VAL_WIFI_SSID] = (uint8_t*) setupData.wifiSsid;
-				smartLightGattData.data[SETUP_IDX_CHAR_VAL_WIFI_PASSWD] = (uint8_t*) setupData.wifiPasswd;
-				smartLightGattData.data[SETUP_IDX_CHAR_VAL_MODE] = &setupData.mode;
-				smartLightGattData.data[SETUP_IDX_CHAR_VAL_CONTROL_POINT] = &setupData.controlPoint;
 
-				esp_ble_gatts_start_service(smartLightGattData.handles[SETUP_IDX_SVC]);
+				if (param->add_attr_tab.svc_inst_id == SL_BLE_SVC_SETUP) {
+					svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_SSID] = (uint8_t*) setupData.wifiSsid;
+					svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_PASSWD] = (uint8_t*) setupData.wifiPasswd;
+					svcGattData->data[SETUP_IDX_CHAR_VAL_MODE] = &setupData.mode;
+					svcGattData->data[SETUP_IDX_CHAR_VAL_CONTROL_POINT] = &setupData.controlPoint;
+				}
+
+				esp_ble_gatts_start_service(svcGattData->handles[SETUP_IDX_SVC]);
 			}
 			break;
 		}
@@ -467,7 +478,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 			smart_light_profile_tab[PROFILE_APP_IDX].gatts_if = gatts_if;
 		}
 		else {
-			ESP_LOGE(GATTS_TABLE_TAG, "reg app failed, app_id %04x, status %d",
+			ESP_LOGE(BLE_LOG_TAG, "reg app failed, app_id %04x, status %d",
 					 param->reg.app_id,
 					 param->reg.status);
 			return;
@@ -497,60 +508,60 @@ void BleSetupState::begin() {
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 	esp_err_t ret = esp_bt_controller_init(&bt_cfg);
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
+		ESP_LOGE(BLE_LOG_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
 		return;
 	}
 
 	ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
+		ESP_LOGE(BLE_LOG_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
 		return;
 	}
 
 	ret = esp_bluedroid_init();
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
+		ESP_LOGE(BLE_LOG_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
 		return;
 	}
 
 	ret = esp_bluedroid_enable();
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "%s enable bluetooth failed: %s", __func__, esp_err_to_name(ret));
+		ESP_LOGE(BLE_LOG_TAG, "%s enable bluetooth failed: %s", __func__, esp_err_to_name(ret));
 		return;
 	}
 
 	ret = esp_ble_gatts_register_callback(gatts_event_handler);
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "gatts register error, error code = %x", ret);
+		ESP_LOGE(BLE_LOG_TAG, "gatts register error, error code = %x", ret);
 		return;
 	}
 
 	ret = esp_ble_gap_register_callback(gap_event_handler);
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "gap register error, error code = %x", ret);
+		ESP_LOGE(BLE_LOG_TAG, "gap register error, error code = %x", ret);
 		return;
 	}
 
 	ret = esp_ble_gatts_app_register(ESP_APP_ID);
 	if (ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "gatts app register error, error code = %x", ret);
+		ESP_LOGE(BLE_LOG_TAG, "gatts app register error, error code = %x", ret);
 		return;
 	}
 
 	esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(500);
 	if (local_mtu_ret) {
-		ESP_LOGE(GATTS_TABLE_TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
+		ESP_LOGE(BLE_LOG_TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
 	}
 }
 
 void BleSetupState::loop() {
 	if (setupData.controlPoint == SETUP_READY) {
-		ESP_LOGI(GATTS_TABLE_TAG, "Setup ready, connecting to WiFi %s", setupData.wifiSsid);
+		ESP_LOGI(BLE_LOG_TAG, "Setup ready, connecting to WiFi %s", setupData.wifiSsid);
 
 		setupData.controlPoint = SETUP_WIFI_CONNECTING;
 		esp_ble_gatts_send_indicate(
 			smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
-			smartLightGattData.handles[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
+			smartLightGattData[SL_BLE_SVC_SETUP].handles[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
 			sizeof(setupData.controlPoint), &setupData.controlPoint, false
 		);
 
@@ -560,21 +571,21 @@ void BleSetupState::loop() {
 		setupData.controlPoint = SETUP_WIFI_CONNECTED;
 		esp_ble_gatts_send_indicate(
 			smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id,
-			smartLightGattData.handles[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
+			smartLightGattData[SL_BLE_SVC_SETUP].handles[SETUP_IDX_CHAR_VAL_CONTROL_POINT],
 			sizeof(setupData.controlPoint), &setupData.controlPoint, false
 		);
 	}
 	else if (setupData.controlPoint == SETUP_DONE) {
-		ESP_LOGI(GATTS_TABLE_TAG, "Setup done, turning off BLE");
+		ESP_LOGI(BLE_LOG_TAG, "Setup done, turning off BLE");
 
 		if (is_connected) {
-			ESP_LOGI(GATTS_TABLE_TAG, "Disconnecting current client");
+			ESP_LOGI(BLE_LOG_TAG, "Disconnecting current client");
 
 			esp_err_t disconnect_result = esp_ble_gatts_close(
 				smart_light_profile_tab[PROFILE_APP_IDX].gatts_if, connection_id
 			);
 			if (disconnect_result != ESP_OK) {
-				ESP_LOGW(GATTS_TABLE_TAG, "Failed to disconnect client");
+				ESP_LOGW(BLE_LOG_TAG, "Failed to disconnect client");
 			}
 		}
 
