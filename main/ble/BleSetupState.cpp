@@ -54,7 +54,7 @@ static SetupData setupData = {
 static MqttConfig mqttData = {
 	.username = {},
 	.passwd = {},
-	.brokerIp = { 192, 168, 0, 102 },
+	.brokerIp = {},
 	.brokerPort = 1883
 };
 
@@ -116,8 +116,8 @@ static uint8_t setup_uuid_base[16] = {
 };
 
 static uint8_t mqtt_uuid_base[16] = {
-	0x0d, 0x86, 0x31, 0xef, 0xf7, 0x8d, 0xde, 0xb7,
-	0x23, 0x49, 0xed, 0x88, 0xc2, 0xba, 0xe7, 0xb8
+	0x77, 0xef, 0xf9, 0x20, 0x1d, 0x69, 0xb7, 0xbe,
+	0x86, 0x47, 0x81, 0x64, 0x36, 0x11, 0x59, 0x10
 };
 
 #define MAKE_UUID_128(base, id) { \
@@ -132,10 +132,12 @@ static uint8_t mode_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHA
 static uint8_t control_point_char_uuid[16] = MAKE_UUID_128(setup_uuid_base, SETUP_IDX_CHAR_CONTROL_POINT);
 
 static uint8_t mqtt_service_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_SVC);
-static uint8_t mqtt_name_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_NAME);
-static uint8_t mqtt_passwd_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_PASSWD);
-static uint8_t mqtt_broker_ip_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_BROKER_IP);
-static uint8_t mqtt_broker_port_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_MQTT_BROKER_PORT);
+static uint8_t mqtt_username_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_USERNAME);
+static uint8_t mqtt_passwd_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_PASSWD);
+static uint8_t mqtt_broker_ip_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_BROKER_IP);
+static uint8_t mqtt_broker_port_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_BROKER_PORT);
+static uint8_t mqtt_dev_name_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_DEVICE_NAME);
+static uint8_t mqtt_dev_group_char_uuid[16] = MAKE_UUID_128(mqtt_uuid_base, MQTT_IDX_CHAR_DEVICE_GROUP);
 
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
@@ -219,65 +221,91 @@ static const esp_gatts_attr_db_t setup_attr_tab[SETUP_IDX_COUNT] =
 	};
 
 /* Full Database Description - Used to add attributes into the database */
-//static const esp_gatts_attr_db_t mqtt_attr_tab[MQTT_IDX_COUNT] =
-//		{
-//				[MQTT_IDX_SVC] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_16, (uint8_t*) &primary_service_uuid, ESP_GATT_PERM_READ,
-//								 ESP_UUID_LEN_128, ESP_UUID_LEN_128, mqtt_service_uuid }},
-//
-//				/* Characteristic Declaration */
-//				[MQTT_IDX_CHAR_MQTT_NAME] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
-//
-//				/* Characteristic Value */
-//				[MQTT_IDX_CHAR_VAL_MQTT_NAME] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_128, mqtt_name_char_uuid,
-//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-//								 ESP_GATT_DEF_BLE_MTU_SIZE, 0, NULL }},
-//
-//				/* Characteristic Declaration */
-//				[MQTT_IDX_CHAR_MQTT_PASSWD] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
-//
-//				/* Characteristic Value */
-//				[MQTT_IDX_CHAR_VAL_MQTT_PASSWD] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_128, mqtt_passwd_char_uuid,
-//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-//								 ESP_GATT_DEF_BLE_MTU_SIZE, 0, NULL }},
-//
-//				/* Characteristic Declaration */
-//				[MQTT_IDX_CHAR_MQTT_BROKER_IP] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
-//
-//				/* Characteristic Value */
-//				[MQTT_IDX_CHAR_VAL_MQTT_BROKER_IP] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_128, mqtt_broker_ip_char_uuid,
-//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-//								 IPV4_ADDR_LEN, IPV4_ADDR_LEN, mqttData.brokerIp }},
-//
-//				/* Characteristic Declaration */
-//				[MQTT_IDX_CHAR_MQTT_BROKER_PORT] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
-//								 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
-//
-//				/* Characteristic Value */
-//				[MQTT_IDX_CHAR_VAL_MQTT_BROKER_PORT] =
-//						{{ ESP_GATT_AUTO_RSP },
-//						 { ESP_UUID_LEN_128, mqtt_broker_port_char_uuid,
-//								 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-//								 sizeof(mqttData.brokerPort), sizeof(mqttData.brokerPort), (uint8_t*) &mqttData.brokerPort }}
-//		};
+static const esp_gatts_attr_db_t mqtt_attr_tab[MQTT_IDX_COUNT] =
+	{
+		[MQTT_IDX_SVC] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &primary_service_uuid, ESP_GATT_PERM_READ,
+				 ESP_UUID_LEN_128, ESP_UUID_LEN_128, mqtt_service_uuid }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_USERNAME] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_USERNAME] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_username_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 MQTT_CRED_MAX_LEN, MQTT_CRED_MAX_LEN, (uint8_t*) mqttData.username }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_PASSWD] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_PASSWD] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_passwd_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 MQTT_CRED_MAX_LEN, MQTT_CRED_MAX_LEN, (uint8_t*) mqttData.passwd }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_BROKER_IP] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_BROKER_IP] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_broker_ip_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 IPV4_LEN, IPV4_LEN, mqttData.brokerIp }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_BROKER_PORT] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_BROKER_PORT] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_broker_port_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 sizeof(mqttData.brokerPort), sizeof(mqttData.brokerPort), (uint8_t*) &mqttData.brokerPort }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_DEVICE_NAME] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_DEVICE_NAME] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_dev_name_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 MQTT_CRED_MAX_LEN, MQTT_CRED_MAX_LEN, (uint8_t*) mqttData.deviceName }},
+
+		/* Characteristic Declaration */
+		[MQTT_IDX_CHAR_DEVICE_GROUP] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_16, (uint8_t*) &character_declaration_uuid, ESP_GATT_PERM_READ,
+				 CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t*) &char_prop_read_write }},
+
+		/* Characteristic Value */
+		[MQTT_IDX_CHAR_VAL_DEVICE_GROUP] =
+			{{ ESP_GATT_AUTO_RSP },
+			 { ESP_UUID_LEN_128, mqtt_dev_group_char_uuid,
+				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				 MQTT_CRED_MAX_LEN, MQTT_CRED_MAX_LEN, (uint8_t*) mqttData.deviceGroup }},
+	};
 
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
 	switch (event) {
@@ -372,12 +400,12 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 				ESP_LOGE(BLE_LOG_TAG, "create setup attr table failed, error code = %x", create_attr_ret);
 			}
 
-//			create_attr_ret = esp_ble_gatts_create_attr_tab(
-//					mqtt_attr_tab, gatts_if, MQTT_IDX_COUNT, MQTT_SVC_INST_ID
-//			);
-//			if (create_attr_ret) {
-//				ESP_LOGE(BLE_LOG_TAG, "create mqtt attr table failed, error code = %x", create_attr_ret);
-//			}
+			create_attr_ret = esp_ble_gatts_create_attr_tab(
+				mqtt_attr_tab, gatts_if, MQTT_IDX_COUNT, SL_BLE_SVC_MQTT
+			);
+			if (create_attr_ret) {
+				ESP_LOGE(BLE_LOG_TAG, "create mqtt attr table failed, error code = %x", create_attr_ret);
+			}
 		}
 			break;
 		case ESP_GATTS_READ_EVT:
@@ -425,36 +453,38 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 		case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
 			if (param->add_attr_tab.status != ESP_GATT_OK) {
 				ESP_LOGE(BLE_LOG_TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
+				return;
 			}
-			else if (param->add_attr_tab.num_handle != SETUP_IDX_COUNT) {
-				ESP_LOGE(
-					BLE_LOG_TAG, "create attribute table abnormally, num_handle (%d) \
-                        doesn't equal to SETUP_IDX_COUNT(%d)", param->add_attr_tab.num_handle, SETUP_IDX_COUNT
-				);
+
+			ESP_LOGI(
+				BLE_LOG_TAG, "create attribute table successfully, service id = %u, attr count = %d\n",
+				param->add_attr_tab.svc_inst_id, param->add_attr_tab.num_handle
+			);
+
+			auto svcGattData = &smartLightGattData[param->add_attr_tab.svc_inst_id];
+			svcGattData->attrCount = param->add_attr_tab.num_handle;
+			memcpy(
+				svcGattData->handles, param->add_attr_tab.handles,
+				param->add_attr_tab.num_handle * sizeof(uint16_t)
+			);
+
+			if (param->add_attr_tab.svc_inst_id == SL_BLE_SVC_SETUP) {
+				svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_SSID] = (uint8_t*) setupData.wifiSsid;
+				svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_PASSWD] = (uint8_t*) setupData.wifiPasswd;
+				svcGattData->data[SETUP_IDX_CHAR_VAL_MODE] = &setupData.mode;
+				svcGattData->data[SETUP_IDX_CHAR_VAL_CONTROL_POINT] = &setupData.controlPoint;
 			}
-			else {
-				ESP_LOGI(
-					BLE_LOG_TAG, "create attribute table successfully, service id = %u, attr count = %d\n",
-					param->add_attr_tab.svc_inst_id, param->add_attr_tab.num_handle
-				);
 
-				auto svcGattData = &smartLightGattData[param->add_attr_tab.svc_inst_id];
-				svcGattData->attrCount = param->add_attr_tab.num_handle;
-
-				memcpy(
-					svcGattData->handles, param->add_attr_tab.handles,
-					param->add_attr_tab.num_handle * sizeof(uint16_t)
-				);
-
-				if (param->add_attr_tab.svc_inst_id == SL_BLE_SVC_SETUP) {
-					svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_SSID] = (uint8_t*) setupData.wifiSsid;
-					svcGattData->data[SETUP_IDX_CHAR_VAL_WIFI_PASSWD] = (uint8_t*) setupData.wifiPasswd;
-					svcGattData->data[SETUP_IDX_CHAR_VAL_MODE] = &setupData.mode;
-					svcGattData->data[SETUP_IDX_CHAR_VAL_CONTROL_POINT] = &setupData.controlPoint;
-				}
-
-				esp_ble_gatts_start_service(svcGattData->handles[SETUP_IDX_SVC]);
+			if (param->add_attr_tab.svc_inst_id == SL_BLE_SVC_MQTT) {
+				svcGattData->data[MQTT_IDX_CHAR_VAL_USERNAME] = (uint8_t*) mqttData.username;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_PASSWD] = (uint8_t*) mqttData.passwd;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_BROKER_IP] = mqttData.brokerIp;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_BROKER_PORT] = (uint8_t*) &mqttData.brokerPort;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_DEVICE_NAME] = (uint8_t*) mqttData.deviceName;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_DEVICE_GROUP] = (uint8_t*) mqttData.deviceGroup;
 			}
+
+			esp_ble_gatts_start_service(svcGattData->handles[SETUP_IDX_SVC]);
 			break;
 		}
 		case ESP_GATTS_STOP_EVT:
@@ -500,9 +530,6 @@ BleSetupState::BleSetupState(SmartLightFSM* fsm)
 	: SmartLightState(fsm) {}
 
 void BleSetupState::begin() {
-//	memset(setupData.wifiSsid, 0, sizeof(setupData.wifiSsid));
-//	memset(setupData.wifiPasswd, 0, sizeof(setupData.wifiPasswd));
-
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -599,8 +626,6 @@ void BleSetupState::loop() {
 			m_fsm->setState(new TcpSlaveState(m_fsm));
 		}
 		else {
-			strcpy(mqttData.username, "esp");
-			strcpy(mqttData.passwd, "mellon");
 			m_fsm->setState(new MqttSlaveState(m_fsm, mqttData));
 		}
 	}

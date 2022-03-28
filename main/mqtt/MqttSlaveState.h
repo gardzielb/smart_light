@@ -20,6 +20,8 @@ struct MqttConfig {
 	char passwd[MQTT_CRED_MAX_LEN];
 	uint8_t brokerIp[IPV4_LEN];
 	uint16_t brokerPort;
+	char deviceName[MQTT_CRED_MAX_LEN];
+	char deviceGroup[MQTT_CRED_MAX_LEN];
 };
 
 
