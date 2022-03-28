@@ -81,4 +81,17 @@ enum {
 };
 
 
+enum SmartLightBleService {
+	SL_BLE_SVC_SETUP,
+	SL_BLE_SVC_MQTT,
+	SL_BLE_SVC_COUNT
+};
+
+
+struct GattCharData {
+	uint16_t handles[SETUP_IDX_COUNT + MQTT_IDX_COUNT];
+	uint8_t* data[SETUP_IDX_COUNT + MQTT_IDX_COUNT];
+};
+
+
 #endif //SMART_LIGHT_BLESETUPSTATE_H
