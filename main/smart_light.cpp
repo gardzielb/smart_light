@@ -3,6 +3,7 @@
 #include <nvs_flash.h>
 
 #include "ble/BleSetupState.h"
+#include "MockLightState.h"
 
 
 extern "C" _Noreturn void app_main(void) {

@@ -23,16 +23,12 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 	ESP_LOGD(LOGGER_TAG, "Event dispatched from event loop base=%s, event_id=%d", base, eventId);
 
 	esp_mqtt_event_handle_t event = static_cast<esp_mqtt_event_handle_t>(eventData);
-	esp_mqtt_client_handle_t client = event->client;
+	MqttSlaveState* mqttState = (MqttSlaveState*) handlerArgs;
 
-	int msg_id;
 	switch ((esp_mqtt_event_id_t) eventId) {
 		case MQTT_EVENT_CONNECTED:
 			ESP_LOGI(LOGGER_TAG, "MQTT_EVENT_CONNECTED");
-			msg_id = esp_mqtt_client_publish(client, "/smart_light/devices", "hello there", 0, 0, 0);
-			ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
-			msg_id = esp_mqtt_client_subscribe(client, "/smart_light/sl00", 0);
-			ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			mqttState->onMqttConnected(event->client);
 			break;
 
 		case MQTT_EVENT_DISCONNECTED:
@@ -56,6 +52,16 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 			ESP_LOGI(
 				LOGGER_TAG, "TOPIC=%.*s, DATA=%.*s\n", event->topic_len, event->topic, event->data_len, event->data
 			);
+
+			if (!strncmp(event->data, "on", event->data_len)) {
+				ESP_LOGI(LOGGER_TAG, "Light on");
+				mqttState->setCommand(LightCommand::LIGHT_ON);
+			}
+			else if (!strncmp(event->data, "off", event->data_len)) {
+				ESP_LOGI(LOGGER_TAG, "Light off");
+				mqttState->setCommand(LightCommand::LIGHT_OFF);
+			}
+
 			break;
 
 		case MQTT_EVENT_ERROR:
@@ -85,6 +91,7 @@ void MqttSlaveState::begin() {
 
 	m_ledRing.initialize();
 	m_ledRing.setColor(64, 0, 16);
+	m_ledRing.turnOn();
 
 	char brokerIpStr[IPV4_LEN * 4] = {};
 	sprintf(
@@ -96,17 +103,43 @@ void MqttSlaveState::begin() {
 		.host = brokerIpStr,
 		.port = m_config.brokerPort,
 		.username = m_config.username,
-		.password = m_config.passwd,
+		.password = m_config.passwd
 	};
 
-	m_mqttClient = esp_mqtt_client_init(&mqttClientConfig);
-	/* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
+	esp_mqtt_client_handle_t mqttClient = esp_mqtt_client_init(&mqttClientConfig);
 	esp_mqtt_client_register_event(
-		m_mqttClient, static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID), mqttEventHandler, NULL
+		mqttClient, static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID), mqttEventHandler, this
 	);
-	esp_mqtt_client_start(m_mqttClient);
+	esp_mqtt_client_start(mqttClient);
 }
 
 void MqttSlaveState::loop() {
-	vTaskDelay(100 / portTICK_PERIOD_MS);
+	switch (m_command) {
+		case LIGHT_IDLE:
+			vTaskDelay(100 / portTICK_PERIOD_MS);
+			break;
+		case LIGHT_ON:
+			m_command = LIGHT_IDLE;
+			m_ledRing.turnOn();
+			break;
+		case LIGHT_OFF:
+			m_command = LIGHT_IDLE;
+			m_ledRing.turnOff();
+			break;
+	}
+}
+
+void MqttSlaveState::onMqttConnected(esp_mqtt_client_handle_t mqttClient) {
+	int msg_id = esp_mqtt_client_publish(mqttClient, "/smart_light/devices", "hello there", 0, 0, 0);
+	ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
+
+	char topic[13 + MQTT_CRED_MAX_LEN + 1] = {};
+	sprintf(topic, "/smart_light/%s", m_config.deviceName);
+	msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
+	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+	memset(topic, 0, sizeof(topic));
+	sprintf(topic, "/smart_light/%s", m_config.deviceGroup);
+	msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
+	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
 }

@@ -25,6 +25,13 @@ struct MqttConfig {
 };
 
 
+enum LightCommand {
+	LIGHT_IDLE,
+	LIGHT_ON,
+	LIGHT_OFF
+};
+
+
 class MqttSlaveState : public SmartLightState {
 public:
 	MqttSlaveState(SmartLightFSM* fsm, MqttConfig config);
@@ -33,10 +40,16 @@ public:
 
 	void loop() override;
 
+	void onMqttConnected(esp_mqtt_client_handle_t mqttClient);
+
+	inline void setCommand(LightCommand command) {
+		m_command = command;
+	}
+
 private:
 	MqttConfig m_config;
-	esp_mqtt_client_handle_t m_mqttClient;
 	LedRing m_ledRing;
+	LightCommand m_command = LightCommand::LIGHT_IDLE;
 };
 
 
