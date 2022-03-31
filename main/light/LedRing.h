@@ -6,7 +6,7 @@
 #define SMART_LED_LEDRING_H
 
 #include <cstdint>
-#include <Adafruit_NeoPixel/Adafruit_NeoPixel.h>
+#include "Adafruit_NeoPixel/Adafruit_NeoPixel.h"
 
 #include "Color.h"
 

@@ -8,10 +8,6 @@
 #include "SmartLightFSM.h"
 #include "LedRing.h"
 
-#define LED_PIN GPIO_NUM_2
-#define LED_RING_PIN GPIO_NUM_5
-#define LED_RING_LED_COUNT 12
-
 
 class MockLightState : public SmartLightState {
 public:
