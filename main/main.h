@@ -1,0 +1,15 @@
+//
+// Created by bartosz on 3/31/22.
+//
+
+#ifndef SMART_LIGHT_MAIN_H
+#define SMART_LIGHT_MAIN_H
+
+#define LED_RING_PIN GPIO_NUM_5
+#define LED_RING_LED_COUNT 12
+
+#define LED_YELLOW_PIN GPIO_NUM_21
+#define LED_GREEN_PIN GPIO_NUM_22
+#define LED_RED_PIN GPIO_NUM_23
+
+#endif //SMART_LIGHT_MAIN_H

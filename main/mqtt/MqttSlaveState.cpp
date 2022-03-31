@@ -8,9 +8,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "main.h"
+
 #define LOGGER_TAG "MQQT_SLAVE"
-#define LED_RING_PIN GPIO_NUM_5
-#define LED_RING_LED_COUNT 12
 
 
 static void log_error_if_nonzero(const char* message, int error_code) {
@@ -88,6 +88,7 @@ MqttSlaveState::MqttSlaveState(SmartLightFSM* fsm, MqttConfig config)
 
 void MqttSlaveState::begin() {
 	ESP_LOGI(LOGGER_TAG, "Entering MQTT slave state");
+	gpio_set_level(LED_GREEN_PIN, 1);
 
 	m_ledRing.initialize();
 	m_ledRing.setColor(64, 0, 16);

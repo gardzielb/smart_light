@@ -1,13 +1,22 @@
 #include <sys/cdefs.h>
 #include <esp_log.h>
 #include <nvs_flash.h>
+#include <esp32-hal-gpio.h>
 
+#include "main.h"
 #include "ble/BleSetupState.h"
-#include "MockLightState.h"
 
 
 extern "C" _Noreturn void app_main(void) {
 	ESP_LOGI("main", "Starting smart light");
+
+	gpio_set_direction(LED_YELLOW_PIN, GPIO_MODE_OUTPUT);
+	gpio_set_direction(LED_GREEN_PIN, GPIO_MODE_OUTPUT);
+	gpio_set_direction(LED_RED_PIN, GPIO_MODE_OUTPUT);
+
+	gpio_set_level(LED_YELLOW_PIN, 0);
+	gpio_set_level(LED_GREEN_PIN, 0);
+	gpio_set_level(LED_RED_PIN, 0);
 
 	/* Initialize NVS. */
 	esp_err_t flash_init_result = nvs_flash_init();

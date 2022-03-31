@@ -18,6 +18,7 @@
 #include "esp_bt_main.h"
 #include "esp_gatt_common_api.h"
 
+#include "main.h"
 #include "mqtt/MqttSlaveState.h"
 #include "tcp/TcpSlaveState.h"
 #include "wifi/WiFi.h"
@@ -530,6 +531,8 @@ BleSetupState::BleSetupState(SmartLightFSM* fsm)
 	: SmartLightState(fsm) {}
 
 void BleSetupState::begin() {
+	gpio_set_level(LED_RED_PIN, 1);
+
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -621,6 +624,8 @@ void BleSetupState::loop() {
 
 		ESP_ERROR_CHECK(esp_bt_controller_disable());
 		ESP_ERROR_CHECK(esp_bt_controller_deinit());
+
+		gpio_set_level(LED_RED_PIN, 0);
 
 		if (setupData.mode == SM_MODE_TCP) {
 			m_fsm->setState(new TcpSlaveState(m_fsm));
