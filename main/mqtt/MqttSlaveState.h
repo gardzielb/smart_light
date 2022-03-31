@@ -13,6 +13,7 @@
 
 #define IPV4_LEN 4
 #define MQTT_CRED_MAX_LEN 20
+#define MQTT_MAX_MSG_SIZE 64
 
 
 struct MqttConfig {
@@ -22,13 +23,6 @@ struct MqttConfig {
 	uint16_t brokerPort;
 	char deviceName[MQTT_CRED_MAX_LEN];
 	char deviceGroup[MQTT_CRED_MAX_LEN];
-};
-
-
-enum LightCommand {
-	LIGHT_IDLE,
-	LIGHT_ON,
-	LIGHT_OFF
 };
 
 
@@ -42,14 +36,15 @@ public:
 
 	void onMqttConnected(esp_mqtt_client_handle_t mqttClient);
 
-	inline void setCommand(LightCommand command) {
-		m_command = command;
+	inline void receiveMessage(uint8_t* data, uint32_t dataLen) {
+		m_cmdBytesCount = dataLen;
+		memcpy(m_cmdBuffer, data, dataLen);
 	}
 
 private:
 	MqttConfig m_config;
-	LedRing m_ledRing;
-	LightCommand m_command = LightCommand::LIGHT_IDLE;
+	uint8_t m_cmdBuffer[MQTT_MAX_MSG_SIZE] = {};
+	uint32_t m_cmdBytesCount = 0;
 };
 
 

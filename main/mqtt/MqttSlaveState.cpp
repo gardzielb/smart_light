@@ -9,6 +9,7 @@
 #include "freertos/task.h"
 
 #include "main.h"
+#include "light/LightController.h"
 
 #define LOGGER_TAG "MQQT_SLAVE"
 
@@ -52,16 +53,7 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 			ESP_LOGI(
 				LOGGER_TAG, "TOPIC=%.*s, DATA=%.*s\n", event->topic_len, event->topic, event->data_len, event->data
 			);
-
-			if (!strncmp(event->data, "on", event->data_len)) {
-				ESP_LOGI(LOGGER_TAG, "Light on");
-				mqttState->setCommand(LightCommand::LIGHT_ON);
-			}
-			else if (!strncmp(event->data, "off", event->data_len)) {
-				ESP_LOGI(LOGGER_TAG, "Light off");
-				mqttState->setCommand(LightCommand::LIGHT_OFF);
-			}
-
+			mqttState->receiveMessage((uint8_t*) event->data, event->data_len);
 			break;
 
 		case MQTT_EVENT_ERROR:
@@ -84,15 +76,11 @@ static void mqttEventHandler(void* handlerArgs, esp_event_base_t base, int32_t e
 
 
 MqttSlaveState::MqttSlaveState(SmartLightFSM* fsm, MqttConfig config)
-	: SmartLightState(fsm), m_config(config), m_ledRing(LED_RING_LED_COUNT, LED_RING_PIN) {}
+	: SmartLightState(fsm), m_config(config) {}
 
 void MqttSlaveState::begin() {
 	ESP_LOGI(LOGGER_TAG, "Entering MQTT slave state");
 	gpio_set_level(LED_GREEN_PIN, 1);
-
-	m_ledRing.initialize();
-	m_ledRing.setColor(64, 0, 16);
-	m_ledRing.turnOn();
 
 	char brokerIpStr[IPV4_LEN * 4] = {};
 	sprintf(
@@ -115,19 +103,16 @@ void MqttSlaveState::begin() {
 }
 
 void MqttSlaveState::loop() {
-	switch (m_command) {
-		case LIGHT_IDLE:
-			vTaskDelay(100 / portTICK_PERIOD_MS);
-			break;
-		case LIGHT_ON:
-			m_command = LIGHT_IDLE;
-			m_ledRing.turnOn();
-			break;
-		case LIGHT_OFF:
-			m_command = LIGHT_IDLE;
-			m_ledRing.turnOff();
-			break;
+	if (!m_cmdBytesCount) {
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+		return;
 	}
+
+	auto& lightController = LightController::get();
+	lightController.execute(m_cmdBuffer, m_cmdBytesCount);
+
+	memset(m_cmdBuffer, 0, MQTT_MAX_MSG_SIZE);
+	m_cmdBytesCount = 0;
 }
 
 void MqttSlaveState::onMqttConnected(esp_mqtt_client_handle_t mqttClient) {

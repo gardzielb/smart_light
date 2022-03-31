@@ -5,6 +5,7 @@
 
 #include "main.h"
 #include "ble/BleSetupState.h"
+#include "light/LightController.h"
 
 
 extern "C" _Noreturn void app_main(void) {
@@ -17,6 +18,8 @@ extern "C" _Noreturn void app_main(void) {
 	gpio_set_level(LED_YELLOW_PIN, 0);
 	gpio_set_level(LED_GREEN_PIN, 0);
 	gpio_set_level(LED_RED_PIN, 0);
+
+	LightController::get().initialize();
 
 	/* Initialize NVS. */
 	esp_err_t flash_init_result = nvs_flash_init();
