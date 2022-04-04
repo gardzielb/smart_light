@@ -4,6 +4,10 @@
 
 #include "LightController.h"
 
+#include <esp_log.h>
+
+#define LOG_TAG "LightController"
+
 void LightController::execute(uint8_t* commands, uint32_t byteCount) {
 	uint32_t cmdSize = sizeof(SmartLightOperation);
 
@@ -15,6 +19,12 @@ void LightController::execute(uint8_t* commands, uint32_t byteCount) {
 }
 
 void LightController::performOperation(SmartLightOperation* operation) {
+	ESP_LOGI(
+		LOG_TAG, "Executing command %u with delay = %u and data = [%u, %u, %u, %u, %u]",
+		operation->command, operation->delay, operation->data[0], operation->data[1],
+		operation->data[2], operation->data[3], operation->data[4]
+	);
+
 	switch (operation->command) {
 		case SL_IDLE:
 			break;
@@ -25,9 +35,13 @@ void LightController::performOperation(SmartLightOperation* operation) {
 			m_light.turnOff();
 			break;
 		case SL_SET_COLOR:
+			ESP_LOGI(
+				LOG_TAG, "Setting color to (%u, %u, %u)", operation->data[0], operation->data[1], operation->data[2]
+			);
 			m_light.setColor(operation->data[0], operation->data[1], operation->data[2]);
 			break;
 		case SL_SET_INTENSITY:
+			ESP_LOGI(LOG_TAG, "Setting intensity to %u", operation->data[0]);
 			m_light.setIntensity(operation->data[0] / 100.f);
 			break;
 		case SL_FADE_OUT:

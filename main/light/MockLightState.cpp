@@ -8,7 +8,7 @@
 
 
 MockLightState::MockLightState(SmartLightFSM* fsm)
-		: SmartLightState(fsm), m_ledRing(LED_RING_LED_COUNT, LED_RING_PIN) {}
+		: SmartLightState(fsm), m_ledRing(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
 
 void MockLightState::begin() {
 	m_ledRing.initialize();

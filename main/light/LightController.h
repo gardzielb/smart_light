@@ -23,7 +23,7 @@ enum SmartLightCommand : uint8_t {
 	SL_SETUP = 0x07
 };
 
-struct SmartLightOperation {
+struct __attribute__((__packed__)) SmartLightOperation {
 	SmartLightCommand command;
 	uint16_t delay;
 	uint8_t data[SL_COMMAND_MAX_LEN];
@@ -33,7 +33,7 @@ struct SmartLightOperation {
 class LightController {
 public:
 	inline LightController()
-		: m_light(LED_RING_LED_COUNT, LED_RING_PIN) {}
+		: m_light(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
 
 	inline static LightController& get() {
 		static LightController instance;
