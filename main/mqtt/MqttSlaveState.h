@@ -41,10 +41,13 @@ public:
 		memcpy(m_cmdBuffer, data, dataLen);
 	}
 
+	~MqttSlaveState();
+
 private:
 	MqttConfig m_config;
 	uint8_t m_cmdBuffer[MQTT_MAX_MSG_SIZE] = {};
 	uint32_t m_cmdBytesCount = 0;
+	esp_mqtt_client_handle_t m_mqttClient;
 };
 
 

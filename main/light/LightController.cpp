@@ -3,22 +3,23 @@
 //
 
 #include "LightController.h"
+#include "setup/BleSetupState.h"
 
 #include <esp_log.h>
 
 #define LOG_TAG "LightController"
 
-void LightController::execute(uint8_t* commands, uint32_t byteCount) {
+void LightController::execute(uint8_t* commands, uint32_t byteCount, SmartLightFSM* slFsm) {
 	uint32_t cmdSize = sizeof(SmartLightOperation);
 
 	for (uint32_t i = 0; i < byteCount; i += cmdSize) {
 		SmartLightOperation operation;
 		memcpy(&operation, &commands[i], cmdSize);
-		performOperation(&operation);
+		performOperation(&operation, slFsm);
 	}
 }
 
-void LightController::performOperation(SmartLightOperation* operation) {
+void LightController::performOperation(SmartLightOperation* operation, SmartLightFSM* slFsm) {
 	ESP_LOGI(
 		LOG_TAG, "Executing command %u with delay = %u and data = [%u, %u, %u, %u, %u]",
 		operation->command, operation->delay, operation->data[0], operation->data[1],
@@ -51,7 +52,7 @@ void LightController::performOperation(SmartLightOperation* operation) {
 			// TODO
 			break;
 		case SL_SETUP:
-			// TODO
+			slFsm->setState(new BleSetupState(slFsm));
 			break;
 	}
 }

@@ -19,6 +19,8 @@
 #include "esp_gatt_common_api.h"
 
 #include "main.h"
+#include "setup.h"
+#include "SetupStorage.h"
 #include "mqtt/MqttSlaveState.h"
 #include "tcp/TcpSlaveState.h"
 #include "wifi/WiFi.h"
@@ -172,7 +174,7 @@ static const esp_gatts_attr_db_t setup_attr_tab[SETUP_IDX_COUNT] =
 			{{ ESP_GATT_AUTO_RSP },
 			 { ESP_UUID_LEN_128, wifi_ssid_char_uuid,
 				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiSsid }},
+				 WIFI_CRED_MAX_LEN, WIFI_CRED_MAX_LEN, (uint8_t*) setupData.wifiSsid }},
 
 		/* Characteristic Declaration */
 		[SETUP_IDX_CHAR_WIFI_PASSWD] =
@@ -185,7 +187,7 @@ static const esp_gatts_attr_db_t setup_attr_tab[SETUP_IDX_COUNT] =
 			{{ ESP_GATT_AUTO_RSP },
 			 { ESP_UUID_LEN_128, wifi_passwd_char_uuid,
 				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				 ESP_GATT_DEF_BLE_MTU_SIZE, ESP_GATT_DEF_BLE_MTU_SIZE, (uint8_t*) setupData.wifiPasswd }},
+				 WIFI_CRED_MAX_LEN, WIFI_CRED_MAX_LEN, (uint8_t*) setupData.wifiPasswd }},
 
 		/* Characteristic Declaration */
 		[SETUP_IDX_CHAR_MODE] =
@@ -624,6 +626,10 @@ void BleSetupState::loop() {
 
 		ESP_ERROR_CHECK(esp_bt_controller_disable());
 		ESP_ERROR_CHECK(esp_bt_controller_deinit());
+
+		auto& storage = SetupStorage::get();
+		storage.storeSetup(&setupData);
+		storage.storeModeSetup((SmartLightMode) setupData.mode, &mqttData, sizeof(mqttData));
 
 		gpio_set_level(LED_RED_PIN, 0);
 

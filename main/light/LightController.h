@@ -9,6 +9,7 @@
 
 #include "main.h"
 #include "LedRing.h"
+#include "SmartLightFSM.h"
 
 #define SL_COMMAND_MAX_LEN 5
 
@@ -32,9 +33,6 @@ struct __attribute__((__packed__)) SmartLightOperation {
 
 class LightController {
 public:
-	inline LightController()
-		: m_light(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
-
 	inline static LightController& get() {
 		static LightController instance;
 		return instance;
@@ -42,13 +40,21 @@ public:
 
 	inline void initialize() {
 		m_light.initialize();
-		m_light.setColor(32, 32, 32);
+		m_light.turnOff();
 	}
 
-	void execute(uint8_t* commands, uint32_t byteCount);
+	inline void setup(Color color, uint8_t intensity) {
+		m_light.setColor(color.r, color.g, color.b);
+		m_light.setIntensity(intensity / 100);
+	}
+
+	void execute(uint8_t* commands, uint32_t byteCount, SmartLightFSM* slFsm);
 
 private:
-	void performOperation(SmartLightOperation* operation);
+	inline LightController()
+		: m_light(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
+
+	void performOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
 
 	LedRing m_light;
 };

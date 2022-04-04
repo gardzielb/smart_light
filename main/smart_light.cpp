@@ -1,11 +1,43 @@
 #include <sys/cdefs.h>
 #include <esp_log.h>
-#include <nvs_flash.h>
 #include <esp32-hal-gpio.h>
 
 #include "main.h"
-#include "ble/BleSetupState.h"
+#include "setup/BleSetupState.h"
 #include "light/LightController.h"
+#include "setup/SetupStorage.h"
+#include "mqtt/MqttSlaveState.h"
+#include "wifi/WiFi.h"
+
+
+void sayHello() {
+	gpio_set_level(LED_YELLOW_PIN, 0);
+	gpio_set_level(LED_GREEN_PIN, 0);
+	gpio_set_level(LED_RED_PIN, 0);
+
+	gpio_set_level(LED_YELLOW_PIN, 1);
+	vTaskDelay(250 / portTICK_PERIOD_MS);
+
+	gpio_set_level(LED_GREEN_PIN, 1);
+	vTaskDelay(250 / portTICK_PERIOD_MS);
+
+	gpio_set_level(LED_RED_PIN, 1);
+	vTaskDelay(500 / portTICK_PERIOD_MS);
+
+	gpio_set_level(LED_YELLOW_PIN, 0);
+	gpio_set_level(LED_GREEN_PIN, 0);
+	gpio_set_level(LED_RED_PIN, 0);
+	vTaskDelay(500 / portTICK_PERIOD_MS);
+
+	gpio_set_level(LED_YELLOW_PIN, 1);
+	gpio_set_level(LED_GREEN_PIN, 1);
+	gpio_set_level(LED_RED_PIN, 1);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+	gpio_set_level(LED_YELLOW_PIN, 0);
+	gpio_set_level(LED_GREEN_PIN, 0);
+	gpio_set_level(LED_RED_PIN, 0);
+}
 
 
 extern "C" _Noreturn void app_main(void) {
@@ -15,23 +47,32 @@ extern "C" _Noreturn void app_main(void) {
 	gpio_set_direction(LED_GREEN_PIN, GPIO_MODE_OUTPUT);
 	gpio_set_direction(LED_RED_PIN, GPIO_MODE_OUTPUT);
 
-	gpio_set_level(LED_YELLOW_PIN, 0);
-	gpio_set_level(LED_GREEN_PIN, 0);
-	gpio_set_level(LED_RED_PIN, 0);
+	sayHello();
 
-	LightController::get().initialize();
-
-	/* Initialize NVS. */
-	esp_err_t flash_init_result = nvs_flash_init();
-	if (flash_init_result == ESP_ERR_NVS_NO_FREE_PAGES || flash_init_result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-		ESP_ERROR_CHECK(nvs_flash_erase());
-		flash_init_result = nvs_flash_init();
-	}
-	ESP_ERROR_CHECK(flash_init_result);
+	auto& storage = SetupStorage::get();
+	auto& lightController = LightController::get();
+	lightController.initialize();
 
 	SmartLightFSM fsm;
-//	fsm.setState(new MockLightState(&fsm));
-	fsm.setState(new BleSetupState(&fsm));
+	SetupData setupData;
+	bool bleSetupNecessary = true;
+
+	if (storage.readSetup(&setupData)) {
+		if (setupData.mode == SM_MODE_MQTT) {
+			wifiInit();
+			wifiConnect(setupData.wifiSsid, setupData.wifiPasswd);
+
+			MqttConfig mqttConfig;
+			if (storage.readModeSetup((SmartLightMode) setupData.mode, &mqttConfig, sizeof(mqttConfig))) {
+				fsm.setState(new MqttSlaveState(&fsm, mqttConfig));
+				bleSetupNecessary = false;
+			}
+		}
+	}
+
+	if (bleSetupNecessary) {
+		fsm.setState(new BleSetupState(&fsm));
+	}
 
 	while (true) {
 		fsm.loop();

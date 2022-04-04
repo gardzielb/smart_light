@@ -9,7 +9,6 @@
 
 #include "esp_gatt_common_api.h"
 
-
 class BleSetupState : public SmartLightState {
 public:
 	BleSetupState(SmartLightFSM* fsm);
@@ -17,29 +16,6 @@ public:
 	void begin() override;
 
 	void loop() override;
-};
-
-
-enum SmartLightMode {
-	SM_MODE_MQTT,
-	SM_MODE_TCP
-};
-
-
-enum SetupStatus {
-	SETUP_IN_PROGRESS,
-	SETUP_READY,
-	SETUP_WIFI_CONNECTING,
-	SETUP_WIFI_CONNECTED,
-	SETUP_DONE
-};
-
-
-struct SetupData {
-	char wifiSsid[ESP_GATT_DEF_BLE_MTU_SIZE];
-	char wifiPasswd[ESP_GATT_DEF_BLE_MTU_SIZE];
-	uint8_t mode;
-	uint8_t controlPoint;
 };
 
 

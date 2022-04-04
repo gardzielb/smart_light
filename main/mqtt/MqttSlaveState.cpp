@@ -11,7 +11,7 @@
 #include "main.h"
 #include "light/LightController.h"
 
-#define LOGGER_TAG "MQQT_SLAVE"
+#define LOGGER_TAG "MQTT_SLAVE"
 
 
 static void log_error_if_nonzero(const char* message, int error_code) {
@@ -95,11 +95,11 @@ void MqttSlaveState::begin() {
 		.password = m_config.passwd
 	};
 
-	esp_mqtt_client_handle_t mqttClient = esp_mqtt_client_init(&mqttClientConfig);
+	m_mqttClient = esp_mqtt_client_init(&mqttClientConfig);
 	esp_mqtt_client_register_event(
-		mqttClient, static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID), mqttEventHandler, this
+		m_mqttClient, static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID), mqttEventHandler, this
 	);
-	esp_mqtt_client_start(mqttClient);
+	esp_mqtt_client_start(m_mqttClient);
 }
 
 void MqttSlaveState::loop() {
@@ -109,7 +109,7 @@ void MqttSlaveState::loop() {
 	}
 
 	auto& lightController = LightController::get();
-	lightController.execute(m_cmdBuffer, m_cmdBytesCount);
+	lightController.execute(m_cmdBuffer, m_cmdBytesCount, m_fsm);
 
 	memset(m_cmdBuffer, 0, MQTT_MAX_MSG_SIZE);
 	m_cmdBytesCount = 0;
@@ -128,4 +128,10 @@ void MqttSlaveState::onMqttConnected(esp_mqtt_client_handle_t mqttClient) {
 	sprintf(topic, "/smart_light/%s", m_config.deviceGroup);
 	msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
 	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
+}
+
+MqttSlaveState::~MqttSlaveState() {
+	esp_mqtt_client_disconnect(m_mqttClient);
+	esp_mqtt_client_destroy(m_mqttClient);
+	gpio_set_level(LED_GREEN_PIN, 0);
 }
