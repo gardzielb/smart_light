@@ -50,13 +50,17 @@ public:
 
 	void execute(uint8_t* commands, uint32_t byteCount, SmartLightFSM* slFsm);
 
+	void executePendingOperation();
+
 private:
 	inline LightController()
 		: m_light(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
 
-	void performOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
+	void handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
 
 	LedRing m_light;
+	TimerHandle_t m_opTimerHandle = NULL;
+	SmartLightOperation m_pendingOperation = {};
 };
 
 
