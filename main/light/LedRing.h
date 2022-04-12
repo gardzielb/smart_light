@@ -25,6 +25,8 @@ public:
 
 	void setIntensity(float intensity);
 
+	inline float getIntensity() { return m_intensity; }
+
 private:
 	void updateLeds();
 

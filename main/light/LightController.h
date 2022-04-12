@@ -30,6 +30,13 @@ struct __attribute__((__packed__)) SmartLightOperation {
 	uint8_t data[SL_COMMAND_MAX_LEN];
 };
 
+struct FadingData {
+	LedRing* light;
+	TimerHandle_t timerHandle;
+	float baseAlpha;
+	float alphaStep;
+};
+
 
 class LightController {
 public:
@@ -52,15 +59,24 @@ public:
 
 	void executePendingOperation();
 
+	~LightController();
+
 private:
-	inline LightController()
-		: m_light(LED_RING_LED_COUNT, LED_RING_OUT_PIN) {}
+	LightController();
 
 	void handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
+
+	void performLightOperation(SmartLightOperation* operation);
+
+	void startFading(uint16_t fadingDuration, bool fromIsr = false);
 
 	LedRing m_light;
 	TimerHandle_t m_opTimerHandle = NULL;
 	SmartLightOperation m_pendingOperation = {};
+	FadingData m_fadingData = {
+		.light = &m_light,
+		.timerHandle = NULL
+	};
 };
 
 
