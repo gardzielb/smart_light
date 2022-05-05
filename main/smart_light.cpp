@@ -7,6 +7,7 @@
 #include "light/LightController.h"
 #include "setup/SetupStorage.h"
 #include "mqtt/MqttSlaveState.h"
+#include "tcp/TcpSlaveState.h"
 #include "wifi/WiFi.h"
 
 
@@ -62,11 +63,14 @@ extern "C" _Noreturn void app_main(void) {
 			wifiInit();
 			wifiConnect(setupData.wifiSsid, setupData.wifiPasswd);
 
-			MqttConfig mqttConfig;
-			if (storage.readModeSetup((SmartLightMode) setupData.mode, &mqttConfig, sizeof(mqttConfig))) {
-				fsm.setState(new MqttSlaveState(&fsm, mqttConfig));
-				bleSetupNecessary = false;
-			}
+			fsm.setState(new TcpSlaveState(&fsm));
+			bleSetupNecessary = false;
+
+//			MqttConfig mqttConfig;
+//			if (storage.readModeSetup((SmartLightMode) setupData.mode, &mqttConfig, sizeof(mqttConfig))) {
+//				fsm.setState(new MqttSlaveState(&fsm, mqttConfig));
+//				bleSetupNecessary = false;
+//			}
 		}
 	}
 
