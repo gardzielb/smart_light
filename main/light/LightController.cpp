@@ -4,6 +4,8 @@
 
 #include "LightController.h"
 #include "setup/BleSetupState.h"
+#include "BlinkState.h"
+#include "setup/SetupStorage.h"
 
 #include <esp_log.h>
 
@@ -100,8 +102,8 @@ void LightController::execute(uint8_t* commands, uint32_t byteCount, SmartLightF
 
 void LightController::handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm) {
 	if (operation->command == SL_SETUP) {
-		slFsm->setState(new BleSetupState(slFsm));
-		return;
+		SetupStorage::get().clear();
+		slFsm->restart();
 	}
 
 	if (operation->delay) {

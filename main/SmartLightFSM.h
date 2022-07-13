@@ -14,6 +14,8 @@ public:
 
 	void loop();
 
+	void restart();
+
 	~SmartLightFSM();
 
 private:

@@ -24,6 +24,8 @@ public:
 
 	bool readModeSetup(SmartLightMode mode, void* outData, size_t dataLen);
 
+	void clear();
+
 private:
 	SetupStorage();
 

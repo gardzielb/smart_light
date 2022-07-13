@@ -63,14 +63,14 @@ extern "C" _Noreturn void app_main(void) {
 			wifiInit();
 			wifiConnect(setupData.wifiSsid, setupData.wifiPasswd);
 
-			fsm.setState(new TcpSlaveState(&fsm));
-			bleSetupNecessary = false;
+//			fsm.setState(new TcpSlaveState(&fsm));
+//			bleSetupNecessary = false;
 
-//			MqttConfig mqttConfig;
-//			if (storage.readModeSetup((SmartLightMode) setupData.mode, &mqttConfig, sizeof(mqttConfig))) {
-//				fsm.setState(new MqttSlaveState(&fsm, mqttConfig));
-//				bleSetupNecessary = false;
-//			}
+			MqttConfig mqttConfig;
+			if (storage.readModeSetup((SmartLightMode) setupData.mode, &mqttConfig, sizeof(mqttConfig))) {
+				fsm.setState(new MqttSlaveState(&fsm, mqttConfig));
+				bleSetupNecessary = false;
+			}
 		}
 	}
 

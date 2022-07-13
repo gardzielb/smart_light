@@ -2,6 +2,7 @@
 // Created by bartosz on 3/3/22.
 //
 
+#include <esp_system.h>
 #include "SmartLightFSM.h"
 
 
@@ -20,4 +21,10 @@ void SmartLightFSM::setState(SmartLightState* state) {
 SmartLightFSM::~SmartLightFSM() {
 	if (m_state)
 		delete m_state;
+}
+
+void SmartLightFSM::restart() {
+	if (m_state)
+		delete m_state;
+	esp_restart();
 }

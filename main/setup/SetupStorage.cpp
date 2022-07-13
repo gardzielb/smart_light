@@ -37,13 +37,13 @@ bool SetupStorage::readSetup(SetupData* outSetupData) {
 }
 
 void SetupStorage::storeModeSetup(SmartLightMode mode, const void* data, size_t dataLen) {
-	char key[15];
+	char key[15] = {};
 	sprintf(key, "mode_%u_data", mode);
 	nvs_set_blob(m_nvsHandle, key, data, dataLen);
 }
 
 bool SetupStorage::readModeSetup(SmartLightMode mode, void* outData, size_t dataLen) {
-	char key[15];
+	char key[15] = {};
 	sprintf(key, "mode_%u_data", mode);
 	esp_err_t nvsReadResult = nvs_get_blob(m_nvsHandle, key, outData, &dataLen);
 
@@ -52,4 +52,10 @@ bool SetupStorage::readModeSetup(SmartLightMode mode, void* outData, size_t data
 	}
 
 	return nvsReadResult == ESP_OK;
+}
+
+void SetupStorage::clear() {
+	nvs_erase_key(m_nvsHandle, NVS_SETUP_KEY);
+	nvs_erase_key(m_nvsHandle, "mode_0_data");
+	nvs_erase_key(m_nvsHandle, "mode_1_data");
 }
