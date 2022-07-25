@@ -14,6 +14,8 @@
 #define IPV4_LEN 4
 #define MQTT_CRED_MAX_LEN 20
 #define MQTT_MAX_MSG_SIZE 64
+#define MQTT_PING_REQUEST_TOPIC "/smart_light/ping/request"
+#define MQTT_PING_RESPONSE_TOPIC "/smart_light/ping/response"
 
 
 struct MqttConfig {
@@ -36,14 +38,13 @@ public:
 
 	void onMqttConnected(esp_mqtt_client_handle_t mqttClient);
 
-	inline void receiveMessage(uint8_t* data, uint32_t dataLen) {
-		m_cmdBytesCount = dataLen;
-		memcpy(m_cmdBuffer, data, dataLen);
-	}
+	void receiveMessage(uint8_t* data, uint32_t dataLen);
 
 	~MqttSlaveState();
 
 private:
+	void sendPing();
+
 	MqttConfig m_config;
 	uint8_t m_cmdBuffer[MQTT_MAX_MSG_SIZE] = {};
 	uint32_t m_cmdBytesCount = 0;

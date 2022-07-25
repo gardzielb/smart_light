@@ -21,7 +21,8 @@ enum SmartLightCommand : uint8_t {
 	SL_SET_INTENSITY = 0x04,
 	SL_FADE_OUT = 0x05,
 	SL_AUTO = 0x06,
-	SL_SETUP = 0x07
+	SL_SETUP = 0x07,
+	SL_PING = 0x08
 };
 
 struct __attribute__((__packed__)) SmartLightOperation {

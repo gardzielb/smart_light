@@ -108,25 +108,32 @@ void MqttSlaveState::loop() {
 		return;
 	}
 
-	auto& lightController = LightController::get();
-	lightController.execute(m_cmdBuffer, m_cmdBytesCount, m_fsm);
+	if (m_cmdBuffer[0] == SL_PING) {
+		sendPing();
+	}
+	else {
+		auto& lightController = LightController::get();
+		lightController.execute(m_cmdBuffer, m_cmdBytesCount, m_fsm);
+	}
 
 	memset(m_cmdBuffer, 0, MQTT_MAX_MSG_SIZE);
 	m_cmdBytesCount = 0;
 }
 
 void MqttSlaveState::onMqttConnected(esp_mqtt_client_handle_t mqttClient) {
-	int msg_id = esp_mqtt_client_publish(mqttClient, "/smart_light/devices", "hello there", 0, 0, 0);
-	ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
+	sendPing();
 
 	char topic[13 + MQTT_CRED_MAX_LEN + 1] = {};
 	sprintf(topic, "/smart_light/%s", m_config.deviceName);
-	msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
+	int msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
 	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
 	memset(topic, 0, sizeof(topic));
 	sprintf(topic, "/smart_light/%s", m_config.deviceGroup);
 	msg_id = esp_mqtt_client_subscribe(mqttClient, topic, 0);
+	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+	msg_id = esp_mqtt_client_subscribe(mqttClient, MQTT_PING_REQUEST_TOPIC, 0);
 	ESP_LOGI(LOGGER_TAG, "sent subscribe successful, msg_id=%d", msg_id);
 }
 
@@ -134,4 +141,14 @@ MqttSlaveState::~MqttSlaveState() {
 	esp_mqtt_client_disconnect(m_mqttClient);
 	esp_mqtt_client_destroy(m_mqttClient);
 	gpio_set_level(LED_GREEN_PIN, 0);
+}
+
+void MqttSlaveState::receiveMessage(uint8_t* data, uint32_t dataLen) {
+	m_cmdBytesCount = dataLen;
+	memcpy(m_cmdBuffer, data, dataLen);
+}
+
+void MqttSlaveState::sendPing() {
+	int msg_id = esp_mqtt_client_publish(m_mqttClient, MQTT_PING_RESPONSE_TOPIC, m_config.deviceName, 0, 0, 0);
+	ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
 }
