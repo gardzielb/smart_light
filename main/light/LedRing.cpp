@@ -6,7 +6,7 @@
 
 
 LedRing::LedRing(uint16_t ledCount, gpio_num_t pin, const Color& color)
-		: m_ledCount(ledCount), m_leds(ledCount, pin, NEO_GRB), m_color(color) {}
+	: m_ledCount(ledCount), m_leds(ledCount, pin, NEO_GRB), m_color(color) {}
 
 void LedRing::initialize() {
 	m_leds.begin();
@@ -14,14 +14,18 @@ void LedRing::initialize() {
 }
 
 void LedRing::turnOn() {
-	updateLeds();
-	m_lightOn = true;
+	if (!m_lightOn) {
+		updateLeds();
+		m_lightOn = true;
+	}
 }
 
 void LedRing::turnOff() {
-	m_leds.clear();
-	m_leds.show();
-	m_lightOn = false;
+	if (m_lightOn) {
+		m_leds.clear();
+		m_leds.show();
+		m_lightOn = false;
+	}
 }
 
 void LedRing::setColor(uint8_t r, uint8_t g, uint8_t b) {

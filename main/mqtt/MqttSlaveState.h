@@ -10,10 +10,11 @@
 
 #include "SmartLightFSM.h"
 #include "light/LedRing.h"
+#include "light/LightController.h"
 
 #define IPV4_LEN 4
 #define MQTT_CRED_MAX_LEN 20
-#define MQTT_MAX_MSG_SIZE 64
+#define MQTT_MAX_MSG_SIZE 128
 #define MQTT_PING_REQUEST_TOPIC "/smart_light/ping/request"
 #define MQTT_PING_RESPONSE_TOPIC "/smart_light/ping/response"
 
@@ -44,6 +45,8 @@ public:
 
 private:
 	void sendPing();
+
+	void handleJsonMsg(LightController& lightController);
 
 	MqttConfig m_config;
 	uint8_t m_cmdBuffer[MQTT_MAX_MSG_SIZE] = {};

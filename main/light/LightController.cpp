@@ -49,63 +49,7 @@ void LightController::startFading(uint16_t fadingDuration, bool fromIsr) {
 		xTimerStart(m_fadingData.timerHandle, 0);
 }
 
-void LightController::performLightOperation(SmartLightOperation* operation) {
-	ESP_LOGI(
-		LOG_TAG, "Executing command %u with delay = %u and data = [%u, %u, %u, %u, %u]",
-		operation->command, operation->delay, operation->data[0], operation->data[1],
-		operation->data[2], operation->data[3], operation->data[4]
-	);
-
-	switch (operation->command) {
-		case SL_IDLE:
-			break;
-		case SL_ON:
-			m_light.turnOn();
-			break;
-		case SL_OFF:
-			m_light.turnOff();
-			break;
-		case SL_SET_COLOR:
-			ESP_LOGI(
-				LOG_TAG, "Setting color to (%u, %u, %u)", operation->data[0], operation->data[1], operation->data[2]
-			);
-			m_light.setColor(operation->data[0], operation->data[1], operation->data[2]);
-			break;
-		case SL_SET_INTENSITY:
-			ESP_LOGI(LOG_TAG, "Setting intensity to %u", operation->data[0]);
-			m_light.setIntensity(operation->data[0] / 100.f);
-			break;
-		case SL_FADE_OUT:
-			startFading(*(uint16_t*) operation->data, operation->delay > 0);
-			break;
-		case SL_AUTO:
-			// TODO
-			break;
-		default:
-			ESP_LOGW(
-				LOG_TAG, "Attempting to execute unexpected operation %u after %u s delay",
-				operation->command, operation->delay
-			);
-			break;
-	}
-}
-
-void LightController::execute(uint8_t* commands, uint32_t byteCount, SmartLightFSM* slFsm) {
-	uint32_t cmdSize = sizeof(SmartLightOperation);
-
-	for (uint32_t i = 0; i < byteCount; i += cmdSize) {
-		SmartLightOperation operation;
-		memcpy(&operation, &commands[i], cmdSize);
-		handleOperation(&operation, slFsm);
-	}
-}
-
 void LightController::handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm) {
-	if (operation->command == SL_SETUP) {
-		SetupStorage::get().clear();
-		slFsm->restart();
-	}
-
 	if (operation->delay) {
 		memcpy(&m_pendingOperation, operation, sizeof(SmartLightOperation));
 
@@ -125,12 +69,61 @@ void LightController::handleOperation(SmartLightOperation* operation, SmartLight
 		xTimerStart(m_opTimerHandle, 0);
 	}
 	else {
-		performLightOperation(operation);
+		execute(operation, slFsm);
+	}
+}
+
+uint8_t LightController::executeCommand(uint8_t cmd, uint8_t* args, SmartLightFSM* slFsm, bool fromIsr) {
+	if (cmd == SL_SETUP) {
+		SetupStorage::get().clear();
+		slFsm->restart();
+	}
+
+//	ESP_LOGI(
+//		LOG_TAG, "Executing command %u with delay = %u and data = [%u, %u, %u, %u, %u]",
+//		operation->command, operation->delay, operation->data[0], operation->data[1],
+//		operation->data[2], operation->data[3], operation->data[4]
+//	);
+
+	switch (cmd) {
+		case SL_IDLE:
+			return 0;
+		case SL_ON:
+			m_light.turnOn();
+			return 0;
+		case SL_OFF:
+			m_light.turnOff();
+			return 0;
+		case SL_SET_COLOR:
+			ESP_LOGI(LOG_TAG, "Setting color to (%u, %u, %u)", args[0], args[1], args[2]);
+			m_light.setColor(args[0], args[1], args[2]);
+			return 3;
+		case SL_SET_INTENSITY:
+			ESP_LOGI(LOG_TAG, "Setting intensity to %u", args[0]);
+			m_light.setIntensity(args[0] / 100.f);
+			return 1;
+		case SL_FADE_OUT:
+			startFading(*(uint16_t*) args, fromIsr);
+			return 2;
+		case SL_AUTO:
+			// TODO
+			return 0;
+		default:
+			ESP_LOGW(LOG_TAG, "Attempting to execute unexpected operation %u", cmd);
+			return 0;
+	}
+}
+
+void LightController::execute(SmartLightOperation* operation, SmartLightFSM* slFsm, bool fromIsr) {
+	int i = 0;
+	while (i < operation->dataLen) {
+		uint8_t argsLen = executeCommand(operation->data[i], &operation->data[i + 1], slFsm, fromIsr);
+		i += (argsLen + 1);
 	}
 }
 
 void LightController::executePendingOperation() {
-	performLightOperation(&m_pendingOperation);
+	execute(&m_pendingOperation.operation, m_pendingOperation.slFsm, true);
 }
 
 LightController::LightController()

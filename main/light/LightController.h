@@ -11,7 +11,7 @@
 #include "LedRing.h"
 #include "SmartLightFSM.h"
 
-#define SL_COMMAND_MAX_LEN 5
+#define SL_COMMAND_MAX_LEN 64
 
 enum SmartLightCommand : uint8_t {
 	SL_IDLE = 0x00,
@@ -22,12 +22,13 @@ enum SmartLightCommand : uint8_t {
 	SL_FADE_OUT = 0x05,
 	SL_AUTO = 0x06,
 	SL_SETUP = 0x07,
-	SL_PING = 0x08
+	SL_PING = 0x08,
+	SL_JSON = '{'
 };
 
 struct __attribute__((__packed__)) SmartLightOperation {
-	SmartLightCommand command;
-	uint16_t delay;
+	uint32_t delay;
+	uint8_t dataLen;
 	uint8_t data[SL_COMMAND_MAX_LEN];
 };
 
@@ -36,6 +37,11 @@ struct FadingData {
 	TimerHandle_t timerHandle;
 	float baseAlpha;
 	float alphaStep;
+};
+
+struct ExecutionRequest {
+	SmartLightFSM* slFsm;
+	SmartLightOperation operation;
 };
 
 
@@ -56,7 +62,7 @@ public:
 		m_light.setIntensity(intensity / 100);
 	}
 
-	void execute(uint8_t* commands, uint32_t byteCount, SmartLightFSM* slFsm);
+	void handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
 
 	void executePendingOperation();
 
@@ -65,15 +71,15 @@ public:
 private:
 	LightController();
 
-	void handleOperation(SmartLightOperation* operation, SmartLightFSM* slFsm);
+	uint8_t executeCommand(uint8_t cmd, uint8_t* args, SmartLightFSM* slFsm, bool fromIsr);
 
-	void performLightOperation(SmartLightOperation* operation);
+	void execute(SmartLightOperation* operation, SmartLightFSM* slFsm, bool fromIsr = false);
 
-	void startFading(uint16_t fadingDuration, bool fromIsr = false);
+	void startFading(uint16_t fadingDuration, bool fromIsr);
 
 	LedRing m_light;
 	TimerHandle_t m_opTimerHandle = NULL;
-	SmartLightOperation m_pendingOperation = {};
+	ExecutionRequest m_pendingOperation = {};
 	FadingData m_fadingData = {
 		.light = &m_light,
 		.timerHandle = NULL

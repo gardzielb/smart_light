@@ -5,6 +5,7 @@
 #include "MqttSlaveState.h"
 
 #include <esp_log.h>
+#include <cJSON.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -108,12 +109,18 @@ void MqttSlaveState::loop() {
 		return;
 	}
 
-	if (m_cmdBuffer[0] == SL_PING) {
-		sendPing();
-	}
-	else {
-		auto& lightController = LightController::get();
-		lightController.execute(m_cmdBuffer, m_cmdBytesCount, m_fsm);
+	auto& lightController = LightController::get();
+
+	switch (m_cmdBuffer[0]) {
+		case SL_JSON:
+			handleJsonMsg(lightController);
+			break;
+		case SL_PING:
+			sendPing();
+			break;
+		default:
+			lightController.handleOperation((SmartLightOperation*) m_cmdBuffer, m_fsm);
+			break;
 	}
 
 	memset(m_cmdBuffer, 0, MQTT_MAX_MSG_SIZE);
@@ -151,4 +158,78 @@ void MqttSlaveState::receiveMessage(uint8_t* data, uint32_t dataLen) {
 void MqttSlaveState::sendPing() {
 	int msg_id = esp_mqtt_client_publish(m_mqttClient, MQTT_PING_RESPONSE_TOPIC, m_config.deviceName, 0, 0, 0);
 	ESP_LOGI(LOGGER_TAG, "sent publish successful, msg_id=%d", msg_id);
+}
+
+void MqttSlaveState::handleJsonMsg(LightController& lightController) {
+	SmartLightOperation batchOperation = {};
+	auto json = cJSON_Parse((const char*) m_cmdBuffer);
+
+	if (cJSON_HasObjectItem(json, "delay")) {
+		auto delayItem = cJSON_GetObjectItem(json, "delay");
+		batchOperation.delay = cJSON_GetNumberValue(delayItem);
+		ESP_LOGI(LOGGER_TAG, "delay = %u", batchOperation.delay);
+	}
+
+	uint8_t* dataPtr = batchOperation.data;
+
+	if (cJSON_HasObjectItem(json, "on")) {
+		auto onOffItem = cJSON_GetObjectItem(json, "on");
+		uint8_t lightOn = cJSON_IsTrue(onOffItem);
+		ESP_LOGI(LOGGER_TAG, "light on = %u", lightOn);
+		*dataPtr = lightOn ? SL_ON : SL_OFF;
+		dataPtr++;
+	}
+
+	if (cJSON_HasObjectItem(json, "color")) {
+		dataPtr[0] = SL_SET_COLOR;
+
+		auto colorItem = cJSON_GetObjectItem(json, "color");
+		auto colorHex = cJSON_GetStringValue(colorItem);
+		ESP_LOGI(LOGGER_TAG, "color = %s", colorHex);
+
+		uint32_t rgb = (uint32_t) strtol(colorHex + 1, NULL, 16);
+		dataPtr[1] = (rgb >> 16) & 0xFF;
+		dataPtr[2] = (rgb >> 8) & 0xFF;
+		dataPtr[3] = rgb & 0xFF;
+		dataPtr += 4;
+	}
+
+	if (cJSON_HasObjectItem(json, "alpha")) {
+		dataPtr[0] = SL_SET_INTENSITY;
+
+		auto alphaItem = cJSON_GetObjectItem(json, "alpha");
+		uint8_t alpha = cJSON_GetNumberValue(alphaItem);
+		ESP_LOGI(LOGGER_TAG, "alpha = %u", alpha);
+
+		dataPtr[1] = alpha;
+		dataPtr += 2;
+	}
+
+	if (cJSON_HasObjectItem(json, "fade")) {
+		auto fadeItem = cJSON_GetObjectItem(json, "fade");
+		uint16_t fadeDuration = cJSON_GetNumberValue(fadeItem);
+		ESP_LOGI(LOGGER_TAG, "fade = %u", fadeDuration);
+
+		if (fadeDuration) {
+			*dataPtr = SL_FADE_OUT;
+			memcpy(dataPtr + 1, &fadeDuration, sizeof(fadeDuration));
+			dataPtr += (1 + sizeof(fadeDuration));
+		}
+	}
+
+	if (cJSON_HasObjectItem(json, "reset")) {
+		auto setupItem = cJSON_GetObjectItem(json, "reset");
+		bool exitToSetup = cJSON_IsTrue(setupItem);
+		ESP_LOGI(LOGGER_TAG, "exit to setup mode = %u", exitToSetup);
+
+		if (exitToSetup) {
+			*dataPtr = SL_SETUP;
+			dataPtr++;
+		}
+	}
+
+	batchOperation.dataLen = dataPtr - batchOperation.data;
+
+	cJSON_Delete(json);
+	lightController.handleOperation(&batchOperation, m_fsm);
 }

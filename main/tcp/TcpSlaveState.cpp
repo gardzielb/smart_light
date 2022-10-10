@@ -25,7 +25,7 @@ void TcpSlaveState::loop() {
 	auto bytesRead = socket.read_some(asio::buffer(m_buffer, SL_TCP_BUFFER_SIZE));
 
 	auto& lightController = LightController::get();
-	lightController.execute(m_buffer, bytesRead, m_fsm);
+	lightController.handleOperation((SmartLightOperation*) m_buffer, m_fsm);
 }
 
 TcpSlaveState::~TcpSlaveState() {
