@@ -83,14 +83,8 @@ void MqttSlaveState::begin() {
 	ESP_LOGI(LOGGER_TAG, "Entering MQTT slave state");
 	gpio_set_level(LED_GREEN_PIN, 1);
 
-	char brokerIpStr[IPV4_LEN * 4] = {};
-	sprintf(
-		brokerIpStr, "%u.%u.%u.%u",
-		m_config.brokerIp[0], m_config.brokerIp[1], m_config.brokerIp[2], m_config.brokerIp[3]
-	);
-
 	esp_mqtt_client_config_t mqttClientConfig = {
-		.host = brokerIpStr,
+		.host = m_config.brokerIp,
 		.port = m_config.brokerPort,
 		.username = m_config.username,
 		.password = m_config.passwd

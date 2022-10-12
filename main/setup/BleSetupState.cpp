@@ -268,7 +268,7 @@ static const esp_gatts_attr_db_t mqtt_attr_tab[MQTT_IDX_COUNT] =
 			{{ ESP_GATT_AUTO_RSP },
 			 { ESP_UUID_LEN_128, mqtt_broker_ip_char_uuid,
 				 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				 IPV4_LEN, IPV4_LEN, mqttData.brokerIp }},
+				 IPV4_LEN, IPV4_LEN, (uint8_t*) mqttData.brokerIp }},
 
 		/* Characteristic Declaration */
 		[MQTT_IDX_CHAR_BROKER_PORT] =
@@ -481,7 +481,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
 			if (param->add_attr_tab.svc_inst_id == SL_BLE_SVC_MQTT) {
 				svcGattData->data[MQTT_IDX_CHAR_VAL_USERNAME] = (uint8_t*) mqttData.username;
 				svcGattData->data[MQTT_IDX_CHAR_VAL_PASSWD] = (uint8_t*) mqttData.passwd;
-				svcGattData->data[MQTT_IDX_CHAR_VAL_BROKER_IP] = mqttData.brokerIp;
+				svcGattData->data[MQTT_IDX_CHAR_VAL_BROKER_IP] = (uint8_t*) mqttData.brokerIp;
 				svcGattData->data[MQTT_IDX_CHAR_VAL_BROKER_PORT] = (uint8_t*) &mqttData.brokerPort;
 				svcGattData->data[MQTT_IDX_CHAR_VAL_DEVICE_NAME] = (uint8_t*) mqttData.deviceName;
 				svcGattData->data[MQTT_IDX_CHAR_VAL_DEVICE_GROUP] = (uint8_t*) mqttData.deviceGroup;

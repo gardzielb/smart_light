@@ -12,7 +12,7 @@
 #include "light/LedRing.h"
 #include "light/LightController.h"
 
-#define IPV4_LEN 4
+#define IPV4_LEN 4 * 4
 #define MQTT_CRED_MAX_LEN 20
 #define MQTT_MAX_MSG_SIZE 128
 #define MQTT_PING_REQUEST_TOPIC "/smart_light/ping/request"
@@ -22,7 +22,7 @@
 struct MqttConfig {
 	char username[MQTT_CRED_MAX_LEN];
 	char passwd[MQTT_CRED_MAX_LEN];
-	uint8_t brokerIp[IPV4_LEN];
+	char brokerIp[IPV4_LEN];
 	uint16_t brokerPort;
 	char deviceName[MQTT_CRED_MAX_LEN];
 	char deviceGroup[MQTT_CRED_MAX_LEN];
