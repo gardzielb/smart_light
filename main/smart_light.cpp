@@ -10,6 +10,8 @@
 #include "tcp/TcpSlaveState.h"
 #include "wifi/WiFi.h"
 
+#define LOG_TAG "main"
+
 
 void sayHello() {
 	gpio_set_level(LED_YELLOW_PIN, 0);
@@ -42,7 +44,17 @@ void sayHello() {
 
 
 extern "C" _Noreturn void app_main(void) {
-	ESP_LOGI("main", "Starting smart light");
+	ESP_LOGI(LOG_TAG, "Starting smart light");
+	uint8_t bleMac[6];
+	if (esp_read_mac(bleMac, ESP_MAC_BT) == ESP_OK) {
+		ESP_LOGI(
+			LOG_TAG, "BLE MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+			bleMac[0], bleMac[1], bleMac[2], bleMac[3], bleMac[4], bleMac[5]
+		);
+	}
+	else {
+		ESP_LOGE(LOG_TAG, "Failed to read BLE mac address");
+	}
 
 	gpio_set_direction(LED_YELLOW_PIN, GPIO_MODE_OUTPUT);
 	gpio_set_direction(LED_GREEN_PIN, GPIO_MODE_OUTPUT);
